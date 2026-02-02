@@ -1,0 +1,20 @@
+{
+  "name": "tailor-desktop",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "dist/main.js",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "electron dist/main.js"
+  },
+  "dependencies": {
+    "electron": "^31.3.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "tsx": "^4.19.0",
+    "@types/node": "^20.17.0"
+  }
+}

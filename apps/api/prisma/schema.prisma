@@ -1,0 +1,14 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Placeholder. Replace with finalized schema.
+model HealthProbe {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+}
