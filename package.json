@@ -1,0 +1,21 @@
+{
+  "name": "tailor-desktop-mvp",
+  "private": true,
+  "version": "0.0.0",
+  "packageManager": "npm@10",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:api\" \"npm run dev:ui\" \"npm run dev:desktop\"",
+    "dev:ui": "npm -w apps/ui run dev",
+    "dev:api": "npm -w apps/api run dev",
+    "dev:desktop": "wait-on http://localhost:4200 && UI_DEV_URL=http://localhost:4200 API_DEV=1 npm -w apps/desktop run dev",
+    "lint": "echo \"lint not yet configured\"",
+    "format": "echo \"format not yet configured\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "wait-on": "^7.2.0"
+  }
+}
