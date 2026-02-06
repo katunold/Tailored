@@ -4,11 +4,110 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  url      = env("DATABASE_URL")
+  url      = "file:../app.db"
 }
 
-// Placeholder. Replace with finalized schema.
-model HealthProbe {
-  id        Int      @id @default(autoincrement())
-  createdAt DateTime @default(now())
+model Client {
+  id        String   @id @default(cuid())
+  fullName  String   @map("full_name")
+  phone     String   @unique
+  notes     String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  orders            Order[]
+  currentMeasures   CurrentMeasurement[]
+
+  @@index([fullName])
+  @@map("clients")
+}
+
+model ItemType {
+  id        String       @id @default(cuid())
+  name      String       @unique
+  category  String
+  isActive  Boolean      @default(true) @map("is_active")
+
+  measurementTemplate MeasurementTemplate?
+  currentMeasures     CurrentMeasurement[]
+  orderItems          OrderItem[]
+  defaults            ItemTypeDefaults?
+
+  @@map("item_types")
+}
+
+model MeasurementTemplate {
+  id         String   @id @default(cuid())
+  itemTypeId String   @unique @map("item_type_id")
+  fieldsJson String   @map("fields_json")
+
+  itemType   ItemType @relation(fields: [itemTypeId], references: [id], onDelete: Cascade)
+
+  @@map("measurement_templates")
+}
+
+model CurrentMeasurement {
+  id         String   @id @default(cuid())
+  clientId   String   @map("client_id")
+  itemTypeId String   @map("item_type_id")
+  valuesJson String   @map("values_json")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  client     Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  itemType   ItemType @relation(fields: [itemTypeId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, itemTypeId])
+  @@map("current_measurements")
+}
+
+model Order {
+  id        String      @id @default(cuid())
+  clientId  String      @map("client_id")
+  status    String      @default("PLACED")
+  dueDate   DateTime?   @map("due_date")
+  notes     String?
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
+
+  client    Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  items     OrderItem[]
+
+  @@index([status])
+  @@index([clientId, createdAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id                       String   @id @default(cuid())
+  orderId                  String   @map("order_id")
+  itemTypeId               String   @map("item_type_id")
+  quantity                 Int      @default(1)
+  color                    String
+  material                 String
+  measurementSnapshotJson  String   @map("measurement_snapshot_json")
+  notes                    String?
+
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  itemType  ItemType @relation(fields: [itemTypeId], references: [id])
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+model ItemTypeDefaults {
+  id              String   @id @default(cuid())
+  itemTypeId      String   @unique @map("item_type_id")
+  defaultMaterial String   @map("default_material")
+  defaultColor    String   @map("default_color")
+
+  itemType        ItemType @relation(fields: [itemTypeId], references: [id], onDelete: Cascade)
+
+  @@map("item_type_defaults")
+}
+
+model Setting {
+  key   String @id
+  value String
+
+  @@map("settings")
 }
