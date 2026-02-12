@@ -1,0 +1,74 @@
+<app-page-header title="New Order" [breadcrumbs]="['Orders', 'New Order']" subtitle="Create orders with guided steps and autosaved drafts.">
+  <div header-actions>
+    <button mat-flat-button color="primary" (click)="submitOrder()">Submit</button>
+  </div>
+</app-page-header>
+
+<mat-card class="page-card" appearance="raised">
+  <mat-stepper linear [selectedIndex]="currentStep" (selectionChange)="onStepChange($event)" #stepper>
+    <mat-step [stepControl]="clientForm" label="Client">
+      <form [formGroup]="clientForm" class="step-grid">
+        <mat-form-field appearance="outline">
+          <mat-label>Client Name</mat-label>
+          <input matInput formControlName="clientName" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Phone</mat-label>
+          <input matInput formControlName="phone" />
+        </mat-form-field>
+      </form>
+    </mat-step>
+
+    <mat-step [stepControl]="orderForm" label="Order">
+      <form [formGroup]="orderForm" class="step-grid">
+        <mat-form-field appearance="outline">
+          <mat-label>Item Type</mat-label>
+          <mat-select formControlName="itemType">
+            <mat-option value="Suit">Suit</mat-option>
+            <mat-option value="Dress">Dress</mat-option>
+            <mat-option value="Shirt">Shirt</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Fabric</mat-label>
+          <input matInput formControlName="fabric" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Delivery Date</mat-label>
+          <input matInput [matDatepicker]="deliveryPicker" formControlName="deliveryDate" />
+          <mat-datepicker-toggle matIconSuffix [for]="deliveryPicker"></mat-datepicker-toggle>
+          <mat-datepicker #deliveryPicker></mat-datepicker>
+        </mat-form-field>
+      </form>
+    </mat-step>
+
+    <mat-step [stepControl]="scheduleForm" label="Fittings & Notes">
+      <form [formGroup]="scheduleForm" class="step-grid">
+        <mat-form-field appearance="outline">
+          <mat-label>First Fitting Date</mat-label>
+          <input matInput [matDatepicker]="fittingPicker" formControlName="firstFittingDate" />
+          <mat-datepicker-toggle matIconSuffix [for]="fittingPicker"></mat-datepicker-toggle>
+          <mat-datepicker #fittingPicker></mat-datepicker>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="notes-field">
+          <mat-label>Order Notes</mat-label>
+          <textarea matInput rows="3" formControlName="notes"></textarea>
+        </mat-form-field>
+      </form>
+    </mat-step>
+  </mat-stepper>
+
+  <div class="sticky-actions">
+    <button mat-stroked-button (click)="discardDraft()">Discard Draft</button>
+    <button mat-stroked-button (click)="saveDraft()">Save Draft</button>
+    <button mat-button (click)="goBack(stepper)" [disabled]="currentStep === 0">Back</button>
+    @if (currentStep < 2) {
+      <button mat-flat-button color="primary" (click)="goNext(stepper)">Next</button>
+    } @else {
+      <button mat-flat-button color="primary" (click)="submitOrder()">Submit Order</button>
+    }
+  </div>
+</mat-card>

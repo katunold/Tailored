@@ -1,0 +1,14 @@
+<header class="page-header">
+  <div>
+    @if (breadcrumbs().length) {
+      <p class="crumbs">{{ breadcrumbs().join(' / ') }}</p>
+    }
+    <h1>{{ title() }}</h1>
+    @if (subtitle()) {
+      <p class="subtitle">{{ subtitle() }}</p>
+    }
+  </div>
+  <div class="actions">
+    <ng-content select="[header-actions]"></ng-content>
+  </div>
+</header>

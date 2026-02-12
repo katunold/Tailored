@@ -1,0 +1,102 @@
+<app-page-header title="Order Details" [breadcrumbs]="['Orders', 'Order Details']" subtitle="Items, measurements, fittings, and notes.">
+  <div header-actions>
+    <button mat-flat-button color="primary" (click)="saveAll()">Save</button>
+  </div>
+</app-page-header>
+
+<mat-card class="page-card" appearance="raised">
+  <mat-tab-group>
+    <mat-tab label="Items">
+      <mat-card class="inner-card" appearance="outlined">
+        <h3>Order Items</h3>
+        <p class="muted">Items configuration will be expanded in the next phase.</p>
+      </mat-card>
+    </mat-tab>
+
+    <mat-tab label="Measurements">
+      <mat-card class="inner-card" appearance="outlined">
+        <form [formGroup]="measurementForm" class="grid">
+          <mat-form-field appearance="outline">
+            <mat-label>Chest (in)</mat-label>
+            <input matInput type="number" formControlName="chest" />
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Waist (in)</mat-label>
+            <input matInput type="number" formControlName="waist" />
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Hip (in)</mat-label>
+            <input matInput type="number" formControlName="hip" />
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Inseam (in)</mat-label>
+            <input matInput type="number" formControlName="inseam" />
+          </mat-form-field>
+        </form>
+
+        <div class="tab-actions">
+          <button mat-stroked-button (click)="resetMeasurementsToDefaults()">Use Current Profile Measurements</button>
+        </div>
+      </mat-card>
+    </mat-tab>
+
+    <mat-tab label="Fittings">
+      <mat-card class="inner-card" appearance="outlined">
+        <form [formGroup]="fittingForm" class="grid">
+          <mat-form-field appearance="outline">
+            <mat-label>Fitting Date</mat-label>
+            <input matInput [matDatepicker]="fittingPicker" formControlName="fittingDate" />
+            <mat-datepicker-toggle matIconSuffix [for]="fittingPicker"></mat-datepicker-toggle>
+            <mat-datepicker #fittingPicker></mat-datepicker>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="span-all">
+            <mat-label>Note</mat-label>
+            <input matInput formControlName="note" placeholder="Optional fitting note" />
+          </mat-form-field>
+        </form>
+
+        <div class="tab-actions">
+          <button mat-flat-button color="primary" (click)="scheduleFitting()">Schedule Fitting</button>
+        </div>
+
+        @if (fittings.length === 0) {
+          <app-empty-state
+            title="No fittings scheduled"
+            description="Use the form above to schedule fitting dates."
+          ></app-empty-state>
+        } @else {
+          <mat-list>
+            @for (fitting of fittings; track fitting.id) {
+              <mat-list-item>
+                <div class="fitting-row">
+                  <div>
+                    <strong>{{ fitting.date | date: 'mediumDate' }}</strong>
+                    <p class="muted">{{ fitting.note || 'No note' }}</p>
+                  </div>
+                  <button mat-stroked-button color="warn" (click)="removeFitting(fitting.id)">Remove</button>
+                </div>
+              </mat-list-item>
+            }
+          </mat-list>
+        }
+      </mat-card>
+    </mat-tab>
+
+    <mat-tab label="Notes">
+      <mat-card class="inner-card" appearance="outlined">
+        <form [formGroup]="noteForm">
+          <mat-form-field appearance="outline" class="span-all">
+            <mat-label>Internal Notes</mat-label>
+            <textarea matInput rows="5" formControlName="notes"></textarea>
+          </mat-form-field>
+        </form>
+      </mat-card>
+    </mat-tab>
+  </mat-tab-group>
+
+  <div class="sticky-actions">
+    <button mat-stroked-button>Save Draft</button>
+    <button mat-flat-button color="primary" (click)="saveAll()">Save Changes</button>
+  </div>
+</mat-card>

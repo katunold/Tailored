@@ -1,0 +1,70 @@
+.shell-container {
+  height: 100vh;
+}
+
+.shell-nav {
+  width: 240px;
+  border-right: 1px solid var(--color-divider);
+  background: #fff;
+}
+
+.brand {
+  padding: 20px 16px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+.active-link {
+  background: #eef2ff;
+  border-radius: 8px;
+}
+
+.shell-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  border-bottom: 1px solid var(--color-divider);
+}
+
+.search-form {
+  flex: 1;
+}
+
+.search-field {
+  width: min(560px, 100%);
+  margin: 0;
+}
+
+.toolbar-spacer {
+  flex: 1;
+}
+
+.result-title {
+  font-weight: 600;
+}
+
+.result-subtitle {
+  font-size: 0.75rem;
+  opacity: 0.8;
+}
+
+.shell-main {
+  padding: 24px;
+}
+
+@media (max-width: 900px) {
+  .shell-nav {
+    width: 200px;
+  }
+
+  .shell-main {
+    padding: 16px;
+  }
+}
