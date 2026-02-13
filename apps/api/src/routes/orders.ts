@@ -9,19 +9,30 @@ function cleanText(v: unknown): string | null {
 
 export function ordersRouter(ctx: AppContext) {
   const route = Router();
+  const parseId = (value: string): number | null => {
+    const id = Number(value);
+    return Number.isInteger(id) && id > 0 ? id : null;
+  };
 
   route.get("/", async (req, res) => {
     const q = String(req.query.query || "").trim();
     const status = String(req.query.status || "").trim();
+    const clientIdRaw = String(req.query.clientId || "").trim();
+    const clientId = clientIdRaw ? parseId(clientIdRaw) : null;
+    if (clientIdRaw && clientId === null) {
+      return res.status(400).json({ error: "Invalid client id" });
+    }
+    const queryAsId = parseId(q);
 
     const orders = await ctx.prisma.order.findMany({
       where: {
+        ...(clientId !== null ? { clientId } : {}),
         ...(status ? { status: status as any } : {}),
         ...(q
           ? {
               OR: [
-                { id: { contains: q } },
-                { client: { fullName: { contains: q, mode: "insensitive" } } },
+                ...(queryAsId !== null ? [{ id: queryAsId }] : []),
+                { client: { fullName: { contains: q } } },
                 { client: { phone: { contains: q } } },
               ],
             }
@@ -36,7 +47,8 @@ export function ordersRouter(ctx: AppContext) {
   });
 
   route.get("/:id", async (req, res) => {
-    const id = req.params.id;
+    const id = parseId(req.params.id);
+    if (id === null) return res.status(400).json({ error: "Invalid order id" });
     const order = await ctx.prisma.order.findUnique({
       where: { id },
       include: { client: true, items: { include: { itemType: true } } },
@@ -44,7 +56,7 @@ export function ordersRouter(ctx: AppContext) {
     if (!order) return res.status(404).json({ error: "Order not found" });
 
     // parse snapshot json for convenience
-    const items = order.items.map((i: { measurementSnapshotJson: string; }) => ({
+    const items = order.items.map((i: any) => ({
       ...i,
       measurementSnapshot: JSON.parse(i.measurementSnapshotJson),
     }));
@@ -60,11 +72,63 @@ export function ordersRouter(ctx: AppContext) {
     const defaults = await ctx.prisma.itemTypeDefaults.findMany({
       where: { itemTypeId: { in: itemTypeIds } },
     });
-    const defaultsByType = new Map<string, { defaultColor?: string; defaultMaterial?: string }>(
-      defaults.map((d: { itemTypeId: string; defaultColor?: string; defaultMaterial?: string }) => [d.itemTypeId, d])
+    const defaultsByType = new Map<number, { defaultColor?: string; defaultMaterial?: string }>(
+      defaults.map((d: any) => [d.itemTypeId, d])
     );
 
-    const created = await ctx.prisma.$transaction(async (tx: { order: { create: (arg0: { data: { clientId: string; status: "PLACED" | "PROCESSING" | "PAUSED" | "COMPLETED" | "CANCELED"; dueDate: Date | null; notes: string | null; }; }) => any; }; currentMeasurement: { upsert: (arg0: { where: { clientId_itemTypeId: { clientId: string; itemTypeId: string; }; }; update: { valuesJson: string; }; create: { clientId: string; itemTypeId: string; valuesJson: string; }; }) => any; findUnique: (arg0: { where: { clientId_itemTypeId: { clientId: string; itemTypeId: string; }; }; }) => any; }; orderItem: { create: (arg0: { data: { orderId: any; itemTypeId: string; quantity: number; color: any; material: any; measurementSnapshotJson: string; notes: null; }; }) => any; }; }) => {
+    // prefetch measurement template fields per item type
+    const templates = await ctx.prisma.measurementTemplate.findMany({
+      where: { itemTypeId: { in: itemTypeIds } },
+      select: { itemTypeId: true, fieldsJson: true },
+    });
+    const templateFieldsByType = new Map<number, Array<{ key: string; required?: boolean }>>(
+      templates.map((t: any) => [t.itemTypeId, JSON.parse(t.fieldsJson)])
+    );
+
+    // get current client profile values once, then simulate order item flow to validate missing fields
+    const profileRows = (await ctx.prisma.$queryRawUnsafe(
+      `SELECT values_json FROM client_measurement_profiles WHERE client_id = ? LIMIT 1`,
+      dto.clientId
+    )) as Array<{ values_json: string }>;
+    const existingProfile = profileRows[0] ?? null;
+    const baseProfileValues = existingProfile ? (JSON.parse(existingProfile.values_json) as Record<string, number>) : {};
+    let workingProfileValues: Record<string, number> = { ...baseProfileValues };
+    const missingByItem: Array<{ itemTypeId: number; missingFields: string[] }> = [];
+
+    for (const item of dto.items) {
+      const useCurrent = item.useCurrentMeasurements === true;
+      const inputValues = item.measurementsInput ?? {};
+      const candidateValues = useCurrent
+        ? { ...workingProfileValues, ...inputValues }
+        : { ...inputValues };
+
+      const templateFields = templateFieldsByType.get(item.itemTypeId) ?? [];
+      const requiredKeys = templateFields
+        .filter((f) => Boolean(f.required))
+        .map((f) => f.key);
+
+      const missingFields = requiredKeys.filter((key) => {
+        const value = candidateValues[key];
+        return value === null || value === undefined || !Number.isFinite(Number(value));
+      });
+
+      if (missingFields.length > 0) {
+        missingByItem.push({ itemTypeId: item.itemTypeId, missingFields });
+      }
+
+      if (useCurrent && item.measurementsInput) {
+        workingProfileValues = candidateValues;
+      }
+    }
+
+    if (missingByItem.length > 0) {
+      return res.status(400).json({
+        error: "Missing required measurements for one or more items.",
+        missingByItem,
+      });
+    }
+
+    const created = await ctx.prisma.$transaction(async (tx: any) => {
       // Create order
       const order = await tx.order.create({
         data: {
@@ -75,38 +139,42 @@ export function ordersRouter(ctx: AppContext) {
         },
       });
 
+      let profileValues: Record<string, number> = { ...baseProfileValues };
+
       // For each item, resolve measurements + snapshot + defaults
       for (const item of dto.items) {
         const d = defaultsByType.get(item.itemTypeId);
 
         const color = cleanText(item.color) ?? d?.defaultColor ?? "Default";
         const material = cleanText(item.material) ?? d?.defaultMaterial ?? "Standard";
+        const useCurrent = item.useCurrentMeasurements === true;
+        const inputValues = item.measurementsInput ?? {};
+        const sourceValues = useCurrent
+          ? { ...profileValues, ...inputValues }
+          : { ...inputValues };
 
-        let measurementValues: Record<string, number>;
+        if (useCurrent && item.measurementsInput) {
+          profileValues = { ...profileValues, ...inputValues };
 
-        if (item.measurementsInput) {
-          // store/update current measurements using input
-          measurementValues = item.measurementsInput;
-
-          await tx.currentMeasurement.upsert({
-            where: {
-              clientId_itemTypeId: { clientId: dto.clientId, itemTypeId: item.itemTypeId },
-            },
-            update: { valuesJson: JSON.stringify(measurementValues) },
-            create: { clientId: dto.clientId, itemTypeId: item.itemTypeId, valuesJson: JSON.stringify(measurementValues) },
-          });
-        } else {
-          // use current measurements
-          const current = await tx.currentMeasurement.findUnique({
-            where: { clientId_itemTypeId: { clientId: dto.clientId, itemTypeId: item.itemTypeId } },
-          });
-
-          if (!current) {
-            throw new Error(`Missing current measurements for itemTypeId=${item.itemTypeId}. Provide measurementsInput.`);
-          }
-
-          measurementValues = JSON.parse(current.valuesJson);
+          await tx.$executeRawUnsafe(
+            `INSERT INTO client_measurement_profiles (client_id, values_json, updated_at)
+             VALUES (?, ?, CURRENT_TIMESTAMP)
+             ON CONFLICT(client_id)
+             DO UPDATE SET values_json = excluded.values_json, updated_at = CURRENT_TIMESTAMP`,
+            dto.clientId,
+            JSON.stringify(profileValues)
+          );
         }
+
+        const templateFields = templateFieldsByType.get(item.itemTypeId) ?? [];
+        const relevantKeys = templateFields.map((f) => f.key);
+        const measurementSnapshot = relevantKeys.reduce<Record<string, number>>((acc, key) => {
+          const value = sourceValues[key];
+          if (value !== undefined && value !== null && Number.isFinite(Number(value))) {
+            acc[key] = Number(value);
+          }
+          return acc;
+        }, {});
 
         await tx.orderItem.create({
           data: {
@@ -115,7 +183,7 @@ export function ordersRouter(ctx: AppContext) {
             quantity: item.quantity ?? 1,
             color,
             material,
-            measurementSnapshotJson: JSON.stringify(measurementValues),
+            measurementSnapshotJson: JSON.stringify(measurementSnapshot),
             notes: null,
           },
         });
@@ -128,7 +196,8 @@ export function ordersRouter(ctx: AppContext) {
   });
 
   route.put("/:id/status", async (req, res) => {
-    const id = req.params.id;
+    const id = parseId(req.params.id);
+    if (id === null) return res.status(400).json({ error: "Invalid order id" });
     const dto = UpdateOrderStatusSchema.parse(req.body);
 
     const updated = await ctx.prisma.order.update({
@@ -137,6 +206,14 @@ export function ordersRouter(ctx: AppContext) {
     });
 
     res.json(updated);
+  });
+
+  route.delete("/:id", async (req, res) => {
+    const id = parseId(req.params.id);
+    if (id === null) return res.status(400).json({ error: "Invalid order id" });
+
+    await ctx.prisma.order.delete({ where: { id } });
+    res.status(204).send();
   });
 
   return route;

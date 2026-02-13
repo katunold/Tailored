@@ -4,6 +4,10 @@ import { CreateClientSchema, UpdateClientSchema } from "../validation/schemas.ts
 
 export function clientsRouter(ctx: AppContext) {
   const route = Router();
+  const parseId = (value: string): number | null => {
+    const id = Number(value);
+    return Number.isInteger(id) && id > 0 ? id : null;
+  };
 
   route.get("/", async (req, res) => {
     const q = String(req.query.query || "").trim();
@@ -31,14 +35,16 @@ export function clientsRouter(ctx: AppContext) {
   });
 
   route.get("/:id", async (req, res) => {
-    const id = req.params.id;
+    const id = parseId(req.params.id);
+    if (id === null) return res.status(400).json({ error: "Invalid client id" });
     const client = await ctx.prisma.client.findUnique({ where: { id } });
     if (!client) return res.status(404).json({ error: "Client not found" });
     res.json(client);
   });
 
   route.put("/:id", async (req, res) => {
-    const id = req.params.id;
+    const id = parseId(req.params.id);
+    if (id === null) return res.status(400).json({ error: "Invalid client id" });
     const dto = UpdateClientSchema.parse(req.body);
     const updated = await ctx.prisma.client.update({ where: { id }, data: dto });
     res.json(updated);

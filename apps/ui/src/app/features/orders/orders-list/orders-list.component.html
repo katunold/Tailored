@@ -66,13 +66,21 @@
 
         <ng-container matColumnDef="deliveryDate">
           <th mat-header-cell *matHeaderCellDef mat-sort-header>Delivery</th>
-          <td mat-cell *matCellDef="let row">{{ row.deliveryDate }}</td>
+          <td mat-cell *matCellDef="let row">{{ row.deliveryDate ? (row.deliveryDate | date: 'mediumDate') : 'TBD' }}</td>
         </ng-container>
 
         <ng-container matColumnDef="actions">
           <th mat-header-cell *matHeaderCellDef>Actions</th>
           <td mat-cell *matCellDef="let row">
-            <button mat-stroked-button (click)="advanceStatus(row)">Advance</button>
+            <button
+              type="button"
+              mat-icon-button
+              [matMenuTriggerFor]="orderActionsMenu"
+              [matMenuTriggerData]="{ order: row }"
+              aria-label="Open order actions"
+            >
+              <mat-icon>more_vert</mat-icon>
+            </button>
           </td>
         </ng-container>
 
@@ -84,3 +92,10 @@
     </div>
   }
 </mat-card>
+
+<mat-menu #orderActionsMenu="matMenu">
+  <ng-template matMenuContent let-order="order">
+    <button mat-menu-item [routerLink]="'/orders/' + order.id">View Order</button>
+    <button mat-menu-item (click)="deleteOrder(order)">Delete Order</button>
+  </ng-template>
+</mat-menu>

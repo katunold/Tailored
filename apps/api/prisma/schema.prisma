@@ -8,22 +8,34 @@ datasource db {
 }
 
 model Client {
-  id        String   @id @default(cuid())
+  id        Int      @id @default(autoincrement())
   fullName  String   @map("full_name")
   phone     String   @unique
   notes     String?
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  orders            Order[]
-  currentMeasures   CurrentMeasurement[]
+  orders              Order[]
+  currentMeasures     CurrentMeasurement[]
+  measurementProfile  ClientMeasurementProfile?
 
   @@index([fullName])
   @@map("clients")
 }
 
+model ClientMeasurementProfile {
+  id         Int      @id @default(autoincrement())
+  clientId   Int      @unique @map("client_id")
+  valuesJson String   @map("values_json")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  client     Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@map("client_measurement_profiles")
+}
+
 model ItemType {
-  id        String       @id @default(cuid())
+  id        Int          @id @default(autoincrement())
   name      String       @unique
   category  String
   isActive  Boolean      @default(true) @map("is_active")
@@ -37,8 +49,8 @@ model ItemType {
 }
 
 model MeasurementTemplate {
-  id         String   @id @default(cuid())
-  itemTypeId String   @unique @map("item_type_id")
+  id         Int      @id @default(autoincrement())
+  itemTypeId Int      @unique @map("item_type_id")
   fieldsJson String   @map("fields_json")
 
   itemType   ItemType @relation(fields: [itemTypeId], references: [id], onDelete: Cascade)
@@ -47,9 +59,9 @@ model MeasurementTemplate {
 }
 
 model CurrentMeasurement {
-  id         String   @id @default(cuid())
-  clientId   String   @map("client_id")
-  itemTypeId String   @map("item_type_id")
+  id         Int      @id @default(autoincrement())
+  clientId   Int      @map("client_id")
+  itemTypeId Int      @map("item_type_id")
   valuesJson String   @map("values_json")
   updatedAt  DateTime @updatedAt @map("updated_at")
 
@@ -61,8 +73,8 @@ model CurrentMeasurement {
 }
 
 model Order {
-  id        String      @id @default(cuid())
-  clientId  String      @map("client_id")
+  id        Int         @id @default(autoincrement())
+  clientId  Int         @map("client_id")
   status    String      @default("PLACED")
   dueDate   DateTime?   @map("due_date")
   notes     String?
@@ -78,9 +90,9 @@ model Order {
 }
 
 model OrderItem {
-  id                       String   @id @default(cuid())
-  orderId                  String   @map("order_id")
-  itemTypeId               String   @map("item_type_id")
+  id                       Int      @id @default(autoincrement())
+  orderId                  Int      @map("order_id")
+  itemTypeId               Int      @map("item_type_id")
   quantity                 Int      @default(1)
   color                    String
   material                 String
@@ -95,8 +107,8 @@ model OrderItem {
 }
 
 model ItemTypeDefaults {
-  id              String   @id @default(cuid())
-  itemTypeId      String   @unique @map("item_type_id")
+  id              Int      @id @default(autoincrement())
+  itemTypeId      Int      @unique @map("item_type_id")
   defaultMaterial String   @map("default_material")
   defaultColor    String   @map("default_color")
 

@@ -1,24 +1,27 @@
-import { AfterViewInit, Component, ViewChild, inject } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { AfterViewInit, ChangeDetectorRef, Component, ViewChild, inject } from '@angular/core';
+import { Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { MatIconModule } from '@angular/material/icon';
+import { MatMenuModule } from '@angular/material/menu';
 import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatSort, MatSortModule } from '@angular/material/sort';
 import { MatTableDataSource, MatTableModule } from '@angular/material/table';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { catchError, finalize, of } from 'rxjs';
 import { PageHeaderComponent } from '../../../shared/page-header/page-header.component';
 import { EmptyStateComponent } from '../../../shared/empty-state/empty-state.component';
+import { ClientDto, ClientsService } from '../clients.service';
 
 interface ClientRow {
-  id: string;
-  name: string;
+  id: number;
+  fullName: string;
   phone: string;
-  email: string;
-  activeOrders: number;
-  lastVisit: string;
+  createdOn: string;
+  updatedAt: string;
 }
 
 @Component({
@@ -29,6 +32,8 @@ interface ClientRow {
     MatCardModule,
     MatFormFieldModule,
     MatInputModule,
+    MatIconModule,
+    MatMenuModule,
     MatPaginatorModule,
     MatSnackBarModule,
     MatSortModule,
@@ -44,24 +49,21 @@ export class ClientsListComponent implements AfterViewInit {
   @ViewChild(MatPaginator) paginator!: MatPaginator;
   @ViewChild(MatSort) sort!: MatSort;
 
-  protected readonly displayedColumns = ['name', 'phone', 'email', 'activeOrders', 'lastVisit', 'actions'];
+  protected readonly displayedColumns = ['fullName', 'phone', 'createdOn', 'updatedAt', 'actions'];
   protected isLoading = true;
   protected searchQuery = '';
 
   private readonly snackBar = inject(MatSnackBar);
-  private readonly rows: ClientRow[] = [
-    { id: 'CL-101', name: 'Avery Cole', phone: '+1 555 0121', email: 'avery@example.com', activeOrders: 2, lastVisit: '2026-02-06' },
-    { id: 'CL-102', name: 'Mina Aziz', phone: '+1 555 0155', email: 'mina@example.com', activeOrders: 1, lastVisit: '2026-02-09' },
-    { id: 'CL-103', name: 'Theo Kim', phone: '+1 555 0148', email: 'theo@example.com', activeOrders: 0, lastVisit: '2026-01-30' },
-    { id: 'CL-104', name: 'Sarah Khan', phone: '+1 555 0188', email: 'sarah@example.com', activeOrders: 3, lastVisit: '2026-02-10' }
-  ];
+  private readonly clientsService = inject(ClientsService);
+  private readonly router = inject(Router);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   protected readonly dataSource = new MatTableDataSource<ClientRow>([]);
 
   constructor() {
     this.dataSource.filterPredicate = (row, filter) => {
       const q = filter.trim().toLowerCase();
-      return !q || `${row.id} ${row.name} ${row.phone} ${row.email}`.toLowerCase().includes(q);
+      return !q || `${row.id} ${row.fullName} ${row.phone} ${row.createdOn}`.toLowerCase().includes(q);
     };
 
     this.refresh();
@@ -75,11 +77,23 @@ export class ClientsListComponent implements AfterViewInit {
   protected refresh(): void {
     this.isLoading = true;
 
-    setTimeout(() => {
-      this.dataSource.data = this.rows;
-      this.applySearch(this.searchQuery);
-      this.isLoading = false;
-    }, 200);
+    this.clientsService
+      .getClients()
+      .pipe(
+        catchError(() => {
+          this.snackBar.open('Could not load clients from API.', 'Close', { duration: 2500 });
+          return of([]);
+        }),
+        finalize(() => {
+          this.isLoading = false;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe((clients) => {
+        this.dataSource.data = clients.map((client) => this.toRow(client));
+        this.applySearch(this.searchQuery);
+        this.cdr.detectChanges();
+      });
   }
 
   protected applySearch(query: string): void {
@@ -94,11 +108,21 @@ export class ClientsListComponent implements AfterViewInit {
     this.applySearch('');
   }
 
-  protected quickCall(client: ClientRow): void {
-    this.snackBar.open(`Calling ${client.name} at ${client.phone}...`, 'Close', { duration: 1800 });
+  protected placeOrder(client: ClientRow): void {
+    this.router.navigate(['/orders/new'], { queryParams: { clientId: client.id } });
   }
 
   protected hasNoResults(): boolean {
     return !this.isLoading && this.dataSource.filteredData.length === 0;
+  }
+
+  private toRow(client: ClientDto): ClientRow {
+    return {
+      id: client.id,
+      fullName: client.fullName,
+      phone: client.phone,
+      createdOn: new Date(client.createdAt).toLocaleDateString(),
+      updatedAt: new Date(client.updatedAt).toLocaleDateString()
+    };
   }
 }
