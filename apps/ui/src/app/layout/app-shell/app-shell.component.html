@@ -1,0 +1,51 @@
+<mat-sidenav-container class="shell-container">
+  <mat-sidenav mode="side" opened class="shell-nav">
+    <div class="brand">Tailored</div>
+    <mat-nav-list>
+      <a mat-list-item routerLink="/orders" routerLinkActive="active-link">Orders</a>
+      <a mat-list-item routerLink="/clients" routerLinkActive="active-link">Clients</a>
+    </mat-nav-list>
+  </mat-sidenav>
+
+  <mat-sidenav-content>
+    <mat-toolbar class="shell-toolbar">
+      <form class="search-form" (submit)="onSearchSubmit($event)">
+        <mat-form-field subscriptSizing="dynamic" appearance="outline" class="search-field">
+          <mat-label>Search by name, phone, or order #</mat-label>
+          <input
+            type="text"
+            matInput
+            [formControl]="searchControl"
+            [matAutocomplete]="globalSearchAuto"
+          />
+        </mat-form-field>
+      </form>
+
+      <mat-autocomplete
+        #globalSearchAuto="matAutocomplete"
+        [displayWith]="displaySearch"
+        (optionSelected)="goToResult($event.option.value)"
+      >
+        @let results = (filteredResults$ | async);
+
+        @if (results?.length) {
+          @for (result of results; track result.route) {
+            <mat-option [value]="result">
+              <div class="result-title">{{ result.label }}</div>
+              <div class="result-subtitle">{{ result.subtitle }}</div>
+            </mat-option>
+          }
+        } @else {
+          <mat-option disabled>No results</mat-option>
+        }
+      </mat-autocomplete>
+
+      <span class="toolbar-spacer"></span>
+      <button mat-flat-button color="accent" routerLink="/orders/new">New Order</button>
+    </mat-toolbar>
+
+    <main class="shell-main">
+      <router-outlet></router-outlet>
+    </main>
+  </mat-sidenav-content>
+</mat-sidenav-container>

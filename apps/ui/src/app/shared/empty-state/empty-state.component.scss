@@ -1,0 +1,10 @@
+.empty-state {
+  padding: 32px;
+  border: 1px dashed var(--color-divider);
+  border-radius: var(--radius-lg);
+  text-align: center;
+  background: #fff;
+}
+
+h3 { margin: 0 0 8px; }
+p { margin: 0 0 16px; opacity: 0.8; }

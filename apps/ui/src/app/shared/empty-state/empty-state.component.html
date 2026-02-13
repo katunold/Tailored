@@ -1,0 +1,7 @@
+<section class="empty-state">
+  <h3>{{ title() }}</h3>
+  <p>{{ description() }}</p>
+  @if (actionLabel()) {
+    <button mat-flat-button color="primary" (click)="action.emit()">{{ actionLabel() }}</button>
+  }
+</section>

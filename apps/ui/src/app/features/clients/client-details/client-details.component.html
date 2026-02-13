@@ -1,0 +1,111 @@
+<app-page-header title="Client Details" [breadcrumbs]="['Clients', 'Client Details']" subtitle="Profile, measurements, and order history.">
+  <div header-actions>
+    <button mat-stroked-button color="warn" (click)="archiveClient()">Archive</button>
+    <button mat-flat-button color="primary" (click)="saveProfile()">Save</button>
+  </div>
+</app-page-header>
+
+<mat-card class="page-card" appearance="raised">
+  <mat-tab-group>
+    <mat-tab label="Profile">
+      <mat-card class="inner-card" appearance="outlined">
+        <form [formGroup]="profileForm" class="grid">
+          <mat-form-field appearance="outline">
+            <mat-label>Full Name</mat-label>
+            <input matInput formControlName="fullName" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Phone</mat-label>
+            <input matInput formControlName="phone" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Email</mat-label>
+            <input matInput formControlName="email" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="span-all">
+            <mat-label>Address</mat-label>
+            <input matInput formControlName="address" />
+          </mat-form-field>
+        </form>
+
+        <div class="tab-actions">
+          <button mat-flat-button color="primary" (click)="saveProfile()">Save Profile</button>
+        </div>
+      </mat-card>
+    </mat-tab>
+
+    <mat-tab label="Measurements">
+      <mat-card class="inner-card" appearance="outlined">
+        <form [formGroup]="measurementForm" class="grid">
+          <mat-form-field appearance="outline">
+            <mat-label>Chest (in)</mat-label>
+            <input matInput type="number" formControlName="chest" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Waist (in)</mat-label>
+            <input matInput type="number" formControlName="waist" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Hip (in)</mat-label>
+            <input matInput type="number" formControlName="hip" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Shoulder (in)</mat-label>
+            <input matInput type="number" formControlName="shoulder" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Inseam (in)</mat-label>
+            <input matInput type="number" formControlName="inseam" />
+          </mat-form-field>
+        </form>
+
+        <div class="tab-actions">
+          <button mat-stroked-button (click)="resetMeasurements()">Reset</button>
+          <button mat-flat-button color="primary" (click)="saveMeasurements()">Save Measurements</button>
+        </div>
+      </mat-card>
+    </mat-tab>
+
+    <mat-tab label="Orders">
+      <mat-card class="inner-card" appearance="outlined">
+        @if (orders.length === 0) {
+          <app-empty-state title="No orders yet" description="Orders for this client appear here."></app-empty-state>
+        } @else {
+          <table mat-table [dataSource]="orders" class="orders-table">
+            <ng-container matColumnDef="id">
+              <th mat-header-cell *matHeaderCellDef>Order #</th>
+              <td mat-cell *matCellDef="let row">{{ row.id }}</td>
+            </ng-container>
+
+            <ng-container matColumnDef="item">
+              <th mat-header-cell *matHeaderCellDef>Item</th>
+              <td mat-cell *matCellDef="let row">{{ row.item }}</td>
+            </ng-container>
+
+            <ng-container matColumnDef="status">
+              <th mat-header-cell *matHeaderCellDef>Status</th>
+              <td mat-cell *matCellDef="let row">
+                <app-status-chip [status]="row.status"></app-status-chip>
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="deliveryDate">
+              <th mat-header-cell *matHeaderCellDef>Delivery</th>
+              <td mat-cell *matCellDef="let row">{{ row.deliveryDate | date: 'mediumDate' }}</td>
+            </ng-container>
+
+            <tr mat-header-row *matHeaderRowDef="orderColumns"></tr>
+            <tr mat-row *matRowDef="let row; columns: orderColumns"></tr>
+          </table>
+        }
+      </mat-card>
+    </mat-tab>
+  </mat-tab-group>
+</mat-card>

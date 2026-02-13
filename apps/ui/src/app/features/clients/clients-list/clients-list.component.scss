@@ -1,0 +1,39 @@
+.page-card {
+  padding: 16px;
+}
+
+.toolbar-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.search-field {
+  flex: 1;
+}
+
+.loading-state {
+  min-height: 180px;
+  display: grid;
+  place-items: center;
+  gap: 12px;
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+.clients-table {
+  width: 100%;
+}
+
+@media (max-width: 900px) {
+  .toolbar-row {
+    flex-wrap: wrap;
+  }
+
+  .search-field {
+    min-width: 100%;
+  }
+}

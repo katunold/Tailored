@@ -1,0 +1,86 @@
+<app-page-header title="Orders" [breadcrumbs]="['Home', 'Orders']" subtitle="Track every order from intake to delivery.">
+  <div header-actions>
+    <button mat-flat-button color="primary" routerLink="/orders/new">New Order</button>
+  </div>
+</app-page-header>
+
+<mat-card class="page-card" appearance="raised">
+  <div class="toolbar-row">
+    <mat-form-field appearance="outline" class="search-field">
+      <mat-label>Search order #, client, or item</mat-label>
+      <input matInput [value]="searchQuery" (input)="onSearch($any($event.target).value)" />
+    </mat-form-field>
+
+    <button mat-stroked-button (click)="clearFilters()">Clear Filters</button>
+    <button mat-stroked-button (click)="refresh()">Refresh</button>
+  </div>
+
+  <div class="quick-filters">
+    @for (status of quickFilters; track status) {
+      <button
+        mat-stroked-button
+        type="button"
+        class="filter-chip-btn"
+        [class.active]="isFilterSelected(status)"
+        (click)="toggleStatus(status)"
+      >
+        <app-status-chip [status]="status"></app-status-chip>
+      </button>
+    }
+  </div>
+
+  @if (isLoading) {
+    <section class="loading-state">
+      <mat-spinner diameter="36"></mat-spinner>
+      <p>Loading orders...</p>
+    </section>
+  } @else if (hasNoResults()) {
+    <app-empty-state
+      title="No matching orders"
+      description="Try another status or search query."
+      actionLabel="Reset Filters"
+      (action)="clearFilters()"
+    ></app-empty-state>
+  } @else {
+    <div class="table-wrap">
+      <table mat-table [dataSource]="dataSource" matSort matSortDisableClear class="orders-table">
+        <ng-container matColumnDef="id">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Order #</th>
+          <td mat-cell *matCellDef="let row"><a [routerLink]="'/orders/' + row.id">{{ row.id }}</a></td>
+        </ng-container>
+
+        <ng-container matColumnDef="client">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Client</th>
+          <td mat-cell *matCellDef="let row">{{ row.client }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="item">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Item</th>
+          <td mat-cell *matCellDef="let row">{{ row.item }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="status">
+          <th mat-header-cell *matHeaderCellDef>Status</th>
+          <td mat-cell *matCellDef="let row"><app-status-chip [status]="row.status"></app-status-chip></td>
+        </ng-container>
+
+        <ng-container matColumnDef="deliveryDate">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Delivery</th>
+          <td mat-cell *matCellDef="let row">{{ row.deliveryDate }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="actions">
+          <th mat-header-cell *matHeaderCellDef>Actions</th>
+          <td mat-cell *matCellDef="let row">
+            <button mat-stroked-button (click)="advanceStatus(row)">Advance</button>
+          </td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+      </table>
+
+      <mat-paginator [pageSize]="5" [pageSizeOptions]="[5, 10, 25]" showFirstLastButtons></mat-paginator>
+    </div>
+  }
+</mat-card>

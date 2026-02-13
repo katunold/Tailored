@@ -1,0 +1,19 @@
+@use './tokens';
+
+@mixin apply {
+  .mat-toolbar.mat-primary {
+    background-color: tokens.$color-primary;
+    color: #fff;
+  }
+
+  .mat-mdc-card,
+  mat-card {
+    background-color: tokens.$color-surface;
+    border-radius: tokens.$radius-lg;
+    box-shadow: 0 2px 12px rgba(17, 24, 39, 0.06);
+  }
+
+  .mat-divider {
+    border-top-color: tokens.$color-divider;
+  }
+}
