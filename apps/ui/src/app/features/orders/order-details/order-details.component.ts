@@ -1,40 +1,42 @@
-import { Component, inject } from '@angular/core';
 import { DatePipe } from '@angular/common';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
+import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
-import { MatDatepickerModule } from '@angular/material/datepicker';
-import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
-import { MatListModule } from '@angular/material/list';
-import { MatNativeDateModule } from '@angular/material/core';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatTabsModule } from '@angular/material/tabs';
-import { PageHeaderComponent } from '../../../shared/page-header/page-header.component';
+import { MatTableModule } from '@angular/material/table';
+import { catchError, finalize, forkJoin, of } from 'rxjs';
 import { EmptyStateComponent } from '../../../shared/empty-state/empty-state.component';
-import { ConfirmDialogComponent } from '../../../shared/confirm-dialog/confirm-dialog.component';
+import { PageHeaderComponent } from '../../../shared/page-header/page-header.component';
+import {
+  BackendOrderStatus,
+  OrderDetails,
+  OrdersService
+} from '../orders.service';
 
-interface FittingSchedule {
-  id: string;
-  date: Date;
-  note: string;
-}
+type StatusOption = {
+  value: BackendOrderStatus;
+  label: string;
+};
 
 @Component({
   selector: 'app-order-details',
   imports: [
     ReactiveFormsModule,
+    RouterLink,
     MatButtonModule,
     MatCardModule,
-    MatDatepickerModule,
-    MatDialogModule,
     MatFormFieldModule,
     MatInputModule,
-    MatListModule,
-    MatNativeDateModule,
+    MatProgressSpinnerModule,
+    MatSelectModule,
     MatSnackBarModule,
-    MatTabsModule,
+    MatTableModule,
     DatePipe,
     PageHeaderComponent,
     EmptyStateComponent
@@ -42,80 +44,154 @@ interface FittingSchedule {
   templateUrl: './order-details.component.html',
   styleUrl: './order-details.component.scss'
 })
-export class OrderDetailsComponent {
+export class OrderDetailsComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
+  private readonly route = inject(ActivatedRoute);
+  private readonly ordersService = inject(OrdersService);
   private readonly snackBar = inject(MatSnackBar);
-  private readonly dialog = inject(MatDialog);
+  private readonly cdr = inject(ChangeDetectorRef);
 
-  protected readonly measurementForm = this.fb.group({
-    chest: [40, [Validators.required, Validators.min(20)]],
-    waist: [34, [Validators.required, Validators.min(20)]],
-    hip: [38, [Validators.required, Validators.min(20)]],
-    inseam: [30, [Validators.required, Validators.min(20)]]
+  protected isLoading = true;
+  protected loadFailed = false;
+  protected isUpdatingStatus = false;
+  protected orderId: number | null = null;
+  protected order: OrderDetails | null = null;
+  protected readonly displayedColumns = ['itemName', 'quantity', 'color', 'material', 'measurements'];
+  private readonly templateKeysByItemTypeId = new Map<number, string[]>();
+  private isPatchingStatus = false;
+
+  protected readonly statusOptions: StatusOption[] = [
+    { value: 'PLACED', label: 'Placed' },
+    { value: 'PROCESSING', label: 'Processing' },
+    { value: 'PAUSED', label: 'Paused' },
+    { value: 'COMPLETED', label: 'Completed' },
+    { value: 'CANCELED', label: 'Canceled' }
+  ];
+
+  protected readonly statusForm = this.fb.group({
+    status: ['PLACED' as BackendOrderStatus, Validators.required]
   });
 
-  protected readonly fittingForm = this.fb.group({
-    fittingDate: [null as Date | null, Validators.required],
-    note: ['']
-  });
-
-  protected readonly noteForm = this.fb.group({
-    notes: ['']
-  });
-
-  protected fittings: FittingSchedule[] = [];
-
-  protected saveAll(): void {
-    this.snackBar.open('Order details saved.', 'Close', { duration: 2000 });
-  }
-
-  protected resetMeasurementsToDefaults(): void {
-    this.measurementForm.patchValue({
-      chest: 40,
-      waist: 34,
-      hip: 38,
-      inseam: 30
-    });
-
-    this.snackBar.open('Measurements reset to current profile defaults.', 'Close', { duration: 2000 });
-  }
-
-  protected scheduleFitting(): void {
-    if (this.fittingForm.invalid) {
-      this.fittingForm.markAllAsTouched();
+  ngOnInit(): void {
+    const id = Number(this.route.snapshot.paramMap.get('id'));
+    if (!Number.isInteger(id) || id <= 0) {
+      this.isLoading = false;
+      this.loadFailed = true;
       return;
     }
 
-    this.fittings = [
-      ...this.fittings,
-      {
-        id: crypto.randomUUID(),
-        date: this.fittingForm.value.fittingDate as Date,
-        note: this.fittingForm.value.note ?? ''
-      }
-    ];
-
-    this.fittingForm.reset({ fittingDate: null, note: '' });
-    this.snackBar.open('Fitting scheduled.', 'Close', { duration: 1800 });
+    this.orderId = id;
+    this.loadOrder(id);
   }
 
-  protected removeFitting(id: string): void {
-    const dialogRef = this.dialog.open(ConfirmDialogComponent, {
-      data: {
-        title: 'Remove fitting?',
-        message: 'This action cannot be undone.',
-        confirmText: 'Remove',
-        cancelText: 'Cancel'
-      }
-    });
+  protected hasOrderItems(): boolean {
+    return (this.order?.items?.length ?? 0) > 0;
+  }
 
-    dialogRef.afterClosed().subscribe((confirmed: boolean) => {
-      if (!confirmed) {
-        return;
-      }
+  protected measurementPairs(item: OrderDetails['items'][number]): Array<{ key: string; value: number }> {
+    const templateKeys = this.templateKeysByItemTypeId.get(item.itemTypeId) ?? [];
 
-      this.fittings = this.fittings.filter((fitting) => fitting.id !== id);
-      this.snackBar.open('Fitting removed.', 'Close', { duration: 1800 });
+    if (templateKeys.length > 0) {
+      return templateKeys
+        .filter((key) => item.measurements[key] !== undefined && item.measurements[key] !== null)
+        .map((key) => ({ key, value: Number(item.measurements[key]) }))
+        .filter((pair) => Number.isFinite(pair.value));
+    }
+
+    return Object.entries(item.measurements)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, value]) => ({ key, value }));
+  }
+
+  protected onStatusChanged(nextStatus: BackendOrderStatus): void {
+    if (!this.orderId || this.statusForm.invalid) {
+      this.statusForm.markAllAsTouched();
+      return;
+    }
+
+    if (!nextStatus || !this.order || this.isPatchingStatus) {
+      return;
+    }
+
+    const previousStatus = this.order.status;
+    if (previousStatus === nextStatus) {
+      return;
+    }
+
+    this.isUpdatingStatus = true;
+    this.ordersService
+      .updateOrderStatus(this.orderId, nextStatus)
+      .pipe(
+        catchError(() => {
+          this.isPatchingStatus = true;
+          this.statusForm.patchValue({ status: previousStatus }, { emitEvent: false });
+          this.isPatchingStatus = false;
+          this.snackBar.open('Could not update order status.', 'Close', { duration: 2500 });
+          return of(null);
+        }),
+        finalize(() => {
+          this.isUpdatingStatus = false;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe((result) => {
+        if (result === null || !this.order) {
+          return;
+        }
+
+        this.order = { ...this.order, status: nextStatus };
+        this.snackBar.open('Order status updated.', 'Close', { duration: 1800 });
+      });
+  }
+
+  private loadOrder(id: number): void {
+    this.isLoading = true;
+    this.loadFailed = false;
+
+    this.ordersService
+      .getOrderById(id)
+      .pipe(
+        catchError(() => {
+          this.loadFailed = true;
+          this.snackBar.open('Could not load order details.', 'Close', { duration: 2500 });
+          return of(null);
+        }),
+        finalize(() => {
+          this.isLoading = false;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe((order) => {
+        if (!order) {
+          this.order = null;
+          return;
+        }
+
+        this.order = order;
+        this.templateKeysByItemTypeId.clear();
+        this.loadTemplatesForItems(order.items.map((item) => item.itemTypeId));
+        this.isPatchingStatus = true;
+        this.statusForm.patchValue({ status: order.status }, { emitEvent: false });
+        this.isPatchingStatus = false;
+      });
+  }
+
+  private loadTemplatesForItems(itemTypeIds: number[]): void {
+    const uniqueIds = Array.from(new Set(itemTypeIds));
+    if (uniqueIds.length === 0) {
+      return;
+    }
+
+    forkJoin(
+      uniqueIds.map((itemTypeId) =>
+        this.ordersService.getItemTypeTemplate(itemTypeId).pipe(catchError(() => of([])))
+      )
+    ).subscribe((templates) => {
+      uniqueIds.forEach((itemTypeId, index) => {
+        const keys = (templates[index] ?? []).map((field) => field.key);
+        this.templateKeysByItemTypeId.set(itemTypeId, keys);
+      });
+      this.cdr.detectChanges();
     });
   }
 }

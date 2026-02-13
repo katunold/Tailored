@@ -17,20 +17,35 @@ export const UpsertCurrentMeasurementSchema = z.object({
 });
 
 export const CreateOrderItemSchema = z.object({
-  itemTypeId: z.string().min(1),
+  itemTypeId: z.coerce.number().int().positive(),
   quantity: z.number().int().min(1).default(1),
   color: z.string().optional(),    // may be blank -> backend defaults
   material: z.string().optional(), // may be blank -> backend defaults
 
   useCurrentMeasurements: z.boolean().optional(),
-  measurementsInput: MeasurementValuesSchema.optional(), // if provided -> update current + snapshot
-}).refine(
-  (v) => Boolean(v.useCurrentMeasurements) !== Boolean(v.measurementsInput),
-  { message: "Provide either useCurrentMeasurements=true OR measurementsInput", path: ["measurementsInput"] }
-);
+  measurementsInput: MeasurementValuesSchema.optional(),
+}).superRefine((v, ctx) => {
+  // Manual mode requires explicit measurements input.
+  if (v.useCurrentMeasurements === false && !v.measurementsInput) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Provide measurementsInput when useCurrentMeasurements=false",
+      path: ["measurementsInput"],
+    });
+  }
+
+  // If mode is omitted, treat as manual and require measurements input.
+  if (v.useCurrentMeasurements === undefined && !v.measurementsInput) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Provide useCurrentMeasurements=true or measurementsInput",
+      path: ["useCurrentMeasurements"],
+    });
+  }
+});
 
 export const CreateOrderSchema = z.object({
-  clientId: z.string().min(1),
+  clientId: z.coerce.number().int().positive(),
   status: OrderStatusSchema.default("PLACED"),
   dueDate: z.string().datetime().optional(), // ISO string
   notes: z.string().optional().nullable(),

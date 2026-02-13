@@ -1,6 +1,10 @@
-<app-page-header title="New Order" [breadcrumbs]="['Orders', 'New Order']" subtitle="Create orders with guided steps and autosaved drafts.">
+<app-page-header
+  title="New Order"
+  [breadcrumbs]="['Orders', 'New Order']"
+  subtitle="Configure order item, measurements, and review before submission."
+>
   <div header-actions>
-    <button mat-flat-button color="primary" (click)="submitOrder()">Submit</button>
+    <button mat-flat-button color="primary" (click)="submitOrder()" [disabled]="isSubmitting">Submit</button>
   </div>
 </app-page-header>
 
@@ -12,6 +16,7 @@
           <mat-label>Client Name</mat-label>
           <input matInput formControlName="clientName" />
         </mat-form-field>
+
         <mat-form-field appearance="outline">
           <mat-label>Phone</mat-label>
           <input matInput formControlName="phone" />
@@ -20,55 +25,150 @@
     </mat-step>
 
     <mat-step [stepControl]="orderForm" label="Order">
-      <form [formGroup]="orderForm" class="step-grid">
-        <mat-form-field appearance="outline">
-          <mat-label>Item Type</mat-label>
-          <mat-select formControlName="itemType">
-            <mat-option value="Suit">Suit</mat-option>
-            <mat-option value="Dress">Dress</mat-option>
-            <mat-option value="Shirt">Shirt</mat-option>
-          </mat-select>
-        </mat-form-field>
+      @if (isLoadingItemTypes) {
+        <section class="loading-state">
+          <mat-spinner diameter="32"></mat-spinner>
+          <p>Loading item types...</p>
+        </section>
+      } @else {
+        <form [formGroup]="orderForm" class="step-grid">
+          <mat-form-field appearance="outline">
+            <mat-label>Item Type</mat-label>
+            <mat-select formControlName="itemTypeId">
+              @for (itemType of itemTypes; track itemType.id) {
+                <mat-option [value]="itemType.id">{{ itemType.name }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
 
-        <mat-form-field appearance="outline">
-          <mat-label>Fabric</mat-label>
-          <input matInput formControlName="fabric" />
-        </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Quantity</mat-label>
+            <input matInput type="number" min="1" formControlName="quantity" />
+          </mat-form-field>
 
-        <mat-form-field appearance="outline">
-          <mat-label>Delivery Date</mat-label>
-          <input matInput [matDatepicker]="deliveryPicker" formControlName="deliveryDate" />
-          <mat-datepicker-toggle matIconSuffix [for]="deliveryPicker"></mat-datepicker-toggle>
-          <mat-datepicker #deliveryPicker></mat-datepicker>
-        </mat-form-field>
-      </form>
+          <mat-form-field appearance="outline">
+            <mat-label>Color</mat-label>
+            <input matInput formControlName="color" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Material</mat-label>
+            <input matInput formControlName="material" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Delivery Date</mat-label>
+            <input matInput [matDatepicker]="deliveryPicker" formControlName="dueDate" />
+            <mat-datepicker-toggle matIconSuffix [for]="deliveryPicker"></mat-datepicker-toggle>
+            <mat-datepicker #deliveryPicker></mat-datepicker>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="notes-field">
+            <mat-label>Order Notes</mat-label>
+            <textarea matInput rows="3" formControlName="notes"></textarea>
+          </mat-form-field>
+        </form>
+      }
     </mat-step>
 
-    <mat-step [stepControl]="scheduleForm" label="Fittings & Notes">
-      <form [formGroup]="scheduleForm" class="step-grid">
-        <mat-form-field appearance="outline">
-          <mat-label>First Fitting Date</mat-label>
-          <input matInput [matDatepicker]="fittingPicker" formControlName="firstFittingDate" />
-          <mat-datepicker-toggle matIconSuffix [for]="fittingPicker"></mat-datepicker-toggle>
-          <mat-datepicker #fittingPicker></mat-datepicker>
-        </mat-form-field>
-
-        <mat-form-field appearance="outline" class="notes-field">
-          <mat-label>Order Notes</mat-label>
-          <textarea matInput rows="3" formControlName="notes"></textarea>
-        </mat-form-field>
+    <mat-step [stepControl]="measurementModeForm" label="Measurements">
+      <form [formGroup]="measurementModeForm">
+        <mat-checkbox formControlName="useCurrentMeasurements">
+          Use current client profile measurements
+        </mat-checkbox>
       </form>
+
+      @if (isLoadingTemplate) {
+        <section class="loading-state">
+          <mat-spinner diameter="32"></mat-spinner>
+          <p>Loading required measurement fields...</p>
+        </section>
+      } @else {
+        <form [formGroup]="measurementForm" class="step-grid measurements-grid">
+          @for (field of selectedTemplateFields; track field.key) {
+            <mat-form-field appearance="outline">
+              <mat-label>{{ measurementFieldLabel(field) }}</mat-label>
+              <input
+                matInput
+                type="number"
+                [formControlName]="field.key"
+                [readonly]="isMeasurementFieldReadOnly(field)"
+              />
+            </mat-form-field>
+          }
+        </form>
+      }
+    </mat-step>
+
+    <mat-step label="Summary">
+      <section class="summary-grid">
+        <div><strong>Client ID:</strong> {{ summaryClientId() }}</div>
+        <div><strong>Client Name:</strong> {{ summaryClientName() }}</div>
+        <div><strong>Client Phone:</strong> {{ summaryClientPhone() }}</div>
+        <div><strong>Total Items:</strong> {{ totalItemsInOrder() }}</div>
+        <div><strong>Item Type:</strong> {{ selectedItemTypeName || 'N/A' }}</div>
+        <div><strong>Quantity:</strong> {{ orderForm.value.quantity }}</div>
+        <div><strong>Color:</strong> {{ orderForm.value.color || 'Default' }}</div>
+        <div><strong>Material:</strong> {{ orderForm.value.material || 'Standard' }}</div>
+        <div>
+          <strong>Delivery:</strong>
+          {{ orderForm.value.dueDate ? (orderForm.value.dueDate | date: 'mediumDate') : 'TBD' }}
+        </div>
+        <div class="span-all">
+          <strong>Measurements:</strong>
+          @if (measurementModeForm.value.useCurrentMeasurements ?? true) {
+            Current client profile
+          } @else {
+            Manual input ({{ selectedTemplateFields.length }} possible fields)
+          }
+        </div>
+        <div class="span-all">
+          <strong>Notes:</strong> {{ orderForm.value.notes || 'None' }}
+        </div>
+      </section>
+
+      @if (addedItems.length > 0) {
+        <section class="queued-items">
+          <h3>Items Added To This Order</h3>
+          @for (item of addedItems; track $index) {
+            <div class="queued-item-row">
+              <div>
+                <strong>{{ itemTypeName(item.itemTypeId) }}</strong>
+                <p class="queued-item-meta">
+                  Qty {{ item.quantity }} | {{ item.color || 'Default' }} | {{ item.material || 'Standard' }} |
+                  {{ itemMeasurementMode(item) }}
+                </p>
+              </div>
+              <button mat-stroked-button color="warn" type="button" (click)="removeAddedItem($index)">Remove</button>
+            </div>
+          }
+        </section>
+      }
+
+      <section class="current-item">
+        <h3>Current Item (Not Yet Added)</h3>
+        <p>
+          <strong>{{ selectedItemTypeName || 'N/A' }}</strong> |
+          Qty {{ orderForm.value.quantity }} |
+          {{ orderForm.value.color || 'Default' }} |
+          {{ orderForm.value.material || 'Standard' }} |
+          @if (measurementModeForm.value.useCurrentMeasurements ?? true) {
+            Current profile measurements
+          } @else {
+            Manual measurements
+          }
+        </p>
+      </section>
     </mat-step>
   </mat-stepper>
 
   <div class="sticky-actions">
-    <button mat-stroked-button (click)="discardDraft()">Discard Draft</button>
-    <button mat-stroked-button (click)="saveDraft()">Save Draft</button>
-    <button mat-button (click)="goBack(stepper)" [disabled]="currentStep === 0">Back</button>
-    @if (currentStep < 2) {
-      <button mat-flat-button color="primary" (click)="goNext(stepper)">Next</button>
+    <button mat-button (click)="goBack()" [disabled]="currentStep === 0 || isSubmitting">Back</button>
+    @if (!isOnSummaryStep()) {
+      <button mat-flat-button color="primary" (click)="goNext()" [disabled]="!canGoNext()">Next</button>
     } @else {
-      <button mat-flat-button color="primary" (click)="submitOrder()">Submit Order</button>
+      <button mat-stroked-button type="button" (click)="addCurrentItem()" [disabled]="isSubmitting">Add Item</button>
+      <button mat-flat-button color="primary" (click)="submitOrder()" [disabled]="isSubmitting">Submit Order</button>
     }
   </div>
 </mat-card>

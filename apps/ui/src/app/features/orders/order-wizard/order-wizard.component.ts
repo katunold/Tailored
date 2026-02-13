@@ -1,37 +1,29 @@
-import { Component, OnDestroy, inject } from '@angular/core';
+import { Component, OnInit, ViewChild, inject } from '@angular/core';
+import { DatePipe } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { ActivatedRoute, Router } from '@angular/router';
+import { HttpErrorResponse } from '@angular/common/http';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDatepickerModule } from '@angular/material/datepicker';
-import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatSelectModule } from '@angular/material/select';
-import { MatStepperModule } from '@angular/material/stepper';
 import { MatNativeDateModule } from '@angular/material/core';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatSelectModule } from '@angular/material/select';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatStepper, MatStepperModule } from '@angular/material/stepper';
+import { catchError, finalize, of } from 'rxjs';
 import { PageHeaderComponent } from '../../../shared/page-header/page-header.component';
-import { ConfirmDialogComponent } from '../../../shared/confirm-dialog/confirm-dialog.component';
-import { Subject, takeUntil } from 'rxjs';
-
-interface OrderDraft {
-  client: {
-    clientName: string;
-    phone: string;
-  };
-  order: {
-    itemType: string;
-    fabric: string;
-    deliveryDate: string | null;
-  };
-  schedule: {
-    firstFittingDate: string | null;
-    notes: string;
-  };
-  stepIndex: number;
-}
-
-const DRAFT_KEY = 'tailored.order-wizard.draft';
+import { MeasurementsService } from '../../clients/measurements.service';
+import { ClientsService } from '../../clients/clients.service';
+import {
+  CreateOrderPayload,
+  OrderItemTemplateField,
+  OrderItemType,
+  OrdersService
+} from '../orders.service';
 
 @Component({
   selector: 'app-order-wizard',
@@ -39,202 +31,530 @@ const DRAFT_KEY = 'tailored.order-wizard.draft';
     ReactiveFormsModule,
     MatButtonModule,
     MatCardModule,
+    MatCheckboxModule,
     MatDatepickerModule,
-    MatDialogModule,
     MatFormFieldModule,
     MatInputModule,
     MatNativeDateModule,
+    MatProgressSpinnerModule,
     MatSelectModule,
     MatSnackBarModule,
     MatStepperModule,
+    DatePipe,
     PageHeaderComponent
   ],
   templateUrl: './order-wizard.component.html',
   styleUrl: './order-wizard.component.scss'
 })
-export class OrderWizardComponent implements OnDestroy {
+export class OrderWizardComponent implements OnInit {
+  @ViewChild('stepper') stepper!: MatStepper;
+
   private readonly fb = inject(FormBuilder);
   private readonly snackBar = inject(MatSnackBar);
-  private readonly dialog = inject(MatDialog);
-  private readonly destroy$ = new Subject<void>();
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+  private readonly ordersService = inject(OrdersService);
+  private readonly clientsService = inject(ClientsService);
+  private readonly measurementsService = inject(MeasurementsService);
 
   protected currentStep = 0;
+  protected isSubmitting = false;
+  protected isLoadingItemTypes = false;
+  protected isLoadingTemplate = false;
+  protected isLoadingClientProfile = false;
+
+  protected scopedClientId: number | null = null;
+  protected itemTypes: OrderItemType[] = [];
+  protected selectedItemTypeName = '';
+  protected selectedTemplateFields: OrderItemTemplateField[] = [];
+  protected clientProfileMeasurements: Record<string, number> = {};
+  protected addedItems: CreateOrderPayload['items'] = [];
 
   protected readonly clientForm = this.fb.group({
-    clientName: ['', Validators.required],
-    phone: ['', Validators.required]
+    clientId: [null as number | null, Validators.required],
+    clientName: [''],
+    phone: ['']
   });
 
   protected readonly orderForm = this.fb.group({
-    itemType: ['Suit', Validators.required],
-    fabric: ['Wool', Validators.required],
-    deliveryDate: [null as Date | null, Validators.required]
-  });
-
-  protected readonly scheduleForm = this.fb.group({
-    firstFittingDate: [null as Date | null, Validators.required],
+    itemTypeId: [null as number | null, Validators.required],
+    quantity: [1, [Validators.required, Validators.min(1)]],
+    color: [''],
+    material: [''],
+    dueDate: [null as Date | null, Validators.required],
     notes: ['']
   });
 
-  constructor() {
-    this.restoreDraft();
-    this.setupAutosave();
+  protected readonly measurementModeForm = this.fb.group({
+    useCurrentMeasurements: [true]
+  });
 
-    this.orderForm.controls.itemType.valueChanges.pipe(takeUntil(this.destroy$)).subscribe((itemType) => {
-      if (itemType === 'Suit') {
-        this.orderForm.controls.fabric.setValue('Wool', { emitEvent: false });
-      } else if (itemType === 'Dress') {
-        this.orderForm.controls.fabric.setValue('Silk blend', { emitEvent: false });
-      } else if (itemType === 'Shirt') {
-        this.orderForm.controls.fabric.setValue('Cotton', { emitEvent: false });
+  protected readonly measurementForm = this.fb.group({});
+
+  ngOnInit(): void {
+    const scopedClientId = Number(this.route.snapshot.queryParamMap.get('clientId'));
+    this.scopedClientId = Number.isInteger(scopedClientId) && scopedClientId > 0 ? scopedClientId : null;
+    if (this.scopedClientId !== null) {
+      this.clientForm.patchValue({ clientId: this.scopedClientId });
+      this.currentStep = 1;
+      this.loadScopedClient(this.scopedClientId);
+      this.loadClientProfile(this.scopedClientId);
+    }
+
+    this.loadItemTypes();
+
+    this.orderForm.controls.itemTypeId.valueChanges.subscribe((itemTypeId) => {
+      if (!itemTypeId) {
+        this.selectedItemTypeName = '';
+        this.selectedTemplateFields = [];
+        this.resetMeasurementForm();
+        return;
       }
 
-      this.persistDraft(false);
+      const match = this.itemTypes.find((itemType) => itemType.id === itemTypeId);
+      this.selectedItemTypeName = match?.name ?? '';
+      this.loadTemplateFields(itemTypeId);
+    });
+
+    this.measurementModeForm.controls.useCurrentMeasurements.valueChanges.subscribe((useCurrent) => {
+      if (useCurrent) {
+        this.applyProfileValuesToMeasurementForm();
+      }
     });
   }
 
-  ngOnDestroy(): void {
-    this.destroy$.next();
-    this.destroy$.complete();
+  protected summaryStepIndex(): number {
+    return 3;
+  }
+
+  protected isOnSummaryStep(): boolean {
+    return this.currentStep === this.summaryStepIndex();
   }
 
   protected onStepChange(event: { selectedIndex: number }): void {
     this.currentStep = event.selectedIndex;
-    this.persistDraft(false);
   }
 
-  protected goBack(stepper: { previous: () => void }): void {
-    stepper.previous();
+  protected goBack(): void {
+    this.stepper.previous();
   }
 
-  protected goNext(stepper: { next: () => void }): void {
-    stepper.next();
-  }
+  protected goNext(): void {
+    if (!this.canProceedFromCurrentStep()) {
+      return;
+    }
 
-  protected saveDraft(): void {
-    this.persistDraft(true);
+    this.stepper.next();
   }
 
   protected submitOrder(): void {
-    if (this.clientForm.invalid || this.orderForm.invalid || this.scheduleForm.invalid) {
-      this.clientForm.markAllAsTouched();
-      this.orderForm.markAllAsTouched();
-      this.scheduleForm.markAllAsTouched();
-      this.snackBar.open('Complete all required fields before submitting.', 'Close', { duration: 2500 });
+    if (!this.validateBeforeSubmit()) {
       return;
     }
 
-    localStorage.removeItem(DRAFT_KEY);
-    this.snackBar.open('Order created successfully.', 'Close', { duration: 2500 });
+    const clientId = this.resolveClientId();
+    if (!clientId) {
+      this.snackBar.open('Client is required.', 'Close', { duration: 2500 });
+      return;
+    }
 
-    this.clientForm.reset({ clientName: '', phone: '' });
-    this.orderForm.reset({ itemType: 'Suit', fabric: 'Wool', deliveryDate: null });
-    this.scheduleForm.reset({ firstFittingDate: null, notes: '' });
-    this.currentStep = 0;
-  }
+    this.isSubmitting = true;
+    const currentItem = this.buildOrderItemPayload();
 
-  protected discardDraft(): void {
-    const dialogRef = this.dialog.open(ConfirmDialogComponent, {
-      data: {
-        title: 'Discard draft?',
-        message: 'This removes your unsaved order wizard progress.',
-        confirmText: 'Discard',
-        cancelText: 'Keep Draft'
-      }
-    });
-
-    dialogRef.afterClosed().subscribe((confirmed: boolean) => {
-      if (!confirmed) {
-        return;
-      }
-
-      localStorage.removeItem(DRAFT_KEY);
-      this.clientForm.reset({ clientName: '', phone: '' });
-      this.orderForm.reset({ itemType: 'Suit', fabric: 'Wool', deliveryDate: null });
-      this.scheduleForm.reset({ firstFittingDate: null, notes: '' });
-      this.currentStep = 0;
-      this.snackBar.open('Draft discarded.', 'Close', { duration: 2000 });
-    });
-  }
-
-  private setupAutosave(): void {
-    this.clientForm.valueChanges.pipe(takeUntil(this.destroy$)).subscribe(() => this.persistDraft(false));
-    this.orderForm.valueChanges.pipe(takeUntil(this.destroy$)).subscribe(() => this.persistDraft(false));
-    this.scheduleForm.valueChanges.pipe(takeUntil(this.destroy$)).subscribe(() => this.persistDraft(false));
-  }
-
-  private persistDraft(showToast: boolean): void {
-    const draft: OrderDraft = {
-      client: {
-        clientName: this.clientForm.value.clientName ?? '',
-        phone: this.clientForm.value.phone ?? ''
-      },
-      order: {
-        itemType: this.orderForm.value.itemType ?? 'Suit',
-        fabric: this.orderForm.value.fabric ?? 'Wool',
-        deliveryDate: this.toIsoDate(this.orderForm.value.deliveryDate ?? null)
-      },
-      schedule: {
-        firstFittingDate: this.toIsoDate(this.scheduleForm.value.firstFittingDate ?? null),
-        notes: this.scheduleForm.value.notes ?? ''
-      },
-      stepIndex: this.currentStep
+    const payload: CreateOrderPayload = {
+      clientId,
+      status: 'PLACED',
+      dueDate: this.orderForm.value.dueDate?.toISOString(),
+      notes: this.orderForm.value.notes?.trim() || null,
+      items: [...this.addedItems, currentItem]
     };
 
-    localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    this.ordersService
+      .createOrder(payload)
+      .pipe(
+        catchError((err: HttpErrorResponse) => {
+          const missingMessage = this.toMissingMeasurementsMessage(err);
+          this.snackBar.open(missingMessage ?? 'Could not create order.', 'Close', { duration: 3500 });
+          return of(null);
+        }),
+        finalize(() => {
+          this.isSubmitting = false;
+        })
+      )
+      .subscribe((created) => {
+        if (!created) {
+          return;
+        }
 
-    if (showToast) {
-      this.snackBar.open('Draft saved.', 'Close', { duration: 1500 });
-    }
+        this.snackBar.open('Order created successfully.', 'Close', { duration: 2500 });
+        this.router.navigate(['/orders', created.id]);
+      });
   }
 
-  private restoreDraft(): void {
-    const raw = localStorage.getItem(DRAFT_KEY);
-
-    if (!raw) {
+  protected addCurrentItem(): void {
+    if (!this.validateBeforeSubmit()) {
       return;
     }
 
-    try {
-      const draft = JSON.parse(raw) as OrderDraft;
+    this.addedItems = [...this.addedItems, this.buildOrderItemPayload()];
+    this.snackBar.open('Item added to order. Configure the next item.', 'Close', { duration: 2000 });
+    this.prepareForNextItem();
+  }
 
-      this.clientForm.patchValue(draft.client ?? {});
-      this.orderForm.patchValue({
-        itemType: draft.order?.itemType ?? 'Suit',
-        fabric: draft.order?.fabric ?? 'Wool',
-        deliveryDate: this.toDate(draft.order?.deliveryDate ?? null)
-      });
-      this.scheduleForm.patchValue({
-        firstFittingDate: this.toDate(draft.schedule?.firstFittingDate ?? null),
-        notes: draft.schedule?.notes ?? ''
-      });
-      this.currentStep = draft.stepIndex ?? 0;
+  protected removeAddedItem(index: number): void {
+    this.addedItems = this.addedItems.filter((_, i) => i !== index);
+  }
 
-      this.snackBar.open('Draft restored.', 'Close', { duration: 1800 });
-    } catch {
-      localStorage.removeItem(DRAFT_KEY);
+  protected totalItemsInOrder(): number {
+    return this.addedItems.length + 1;
+  }
+
+  protected itemTypeName(itemTypeId: number): string {
+    return this.itemTypes.find((itemType) => itemType.id === itemTypeId)?.name ?? 'N/A';
+  }
+
+  protected itemMeasurementMode(item: CreateOrderPayload['items'][number]): string {
+    if (item.useCurrentMeasurements) {
+      return 'Current profile measurements';
+    }
+    return 'Manual measurements';
+  }
+
+  protected measurementFieldLabel(field: OrderItemTemplateField): string {
+    return `${field.label}${field.required ? ' *' : ''}`;
+  }
+
+  protected isMeasurementFieldReadOnly(field: OrderItemTemplateField): boolean {
+    const useCurrent = this.measurementModeForm.value.useCurrentMeasurements ?? true;
+    if (!useCurrent) {
+      return false;
+    }
+
+    return this.hasProfileValue(field.key);
+  }
+
+  protected summaryClientId(): string {
+    const id = this.resolveClientId();
+    return id === null ? 'N/A' : String(id);
+  }
+
+  protected summaryClientName(): string {
+    return this.clientForm.getRawValue().clientName?.trim() || 'N/A';
+  }
+
+  protected summaryClientPhone(): string {
+    return this.clientForm.getRawValue().phone?.trim() || 'N/A';
+  }
+
+  protected canGoNext(): boolean {
+    const clientStepIndex = 0;
+    const orderStepIndex = 1;
+    const measurementStepIndex = 2;
+
+    if (this.isSubmitting || this.isLoadingItemTypes || this.isLoadingTemplate || this.isLoadingClientProfile) {
+      return false;
+    }
+
+    if (this.currentStep === clientStepIndex) {
+      return this.clientForm.valid;
+    }
+
+    if (this.currentStep === orderStepIndex) {
+      return this.orderForm.valid;
+    }
+
+    if (this.currentStep === measurementStepIndex) {
+      return this.areRequiredMeasurementsSatisfied();
+    }
+
+    return false;
+  }
+
+  private loadItemTypes(): void {
+    this.isLoadingItemTypes = true;
+
+    this.ordersService
+      .getItemTypes()
+      .pipe(
+        catchError(() => {
+          this.snackBar.open('Could not load item types.', 'Close', { duration: 2500 });
+          return of([]);
+        }),
+        finalize(() => {
+          this.isLoadingItemTypes = false;
+        })
+      )
+      .subscribe((itemTypes) => {
+        this.itemTypes = itemTypes;
+      });
+  }
+
+  private loadTemplateFields(itemTypeId: number): void {
+    this.isLoadingTemplate = true;
+    this.resetMeasurementForm();
+
+    this.ordersService
+      .getItemTypeTemplate(itemTypeId)
+      .pipe(
+        catchError(() => {
+          this.snackBar.open('Could not load measurement template.', 'Close', { duration: 2500 });
+          return of([]);
+        }),
+        finalize(() => {
+          this.isLoadingTemplate = false;
+        })
+      )
+      .subscribe((fields) => {
+        this.selectedTemplateFields = fields.filter((field) => field.type === 'number');
+
+        for (const field of this.selectedTemplateFields) {
+          const profileValue =
+            field.key in this.clientProfileMeasurements ? this.clientProfileMeasurements[field.key] : null;
+          this.measurementForm.addControl(field.key, this.fb.control<number | null>(profileValue));
+        }
+      });
+  }
+
+  private resetMeasurementForm(): void {
+    for (const key of Object.keys(this.measurementForm.controls)) {
+      this.measurementForm.removeControl(key);
     }
   }
 
-  private toIsoDate(value: Date | string | null): string | null {
-    if (!value) {
-      return null;
+  private canProceedFromCurrentStep(): boolean {
+    if (this.canGoNext()) {
+      return true;
     }
 
-    const date = value instanceof Date ? value : new Date(value);
-    if (Number.isNaN(date.getTime())) {
-      return null;
+    if (this.currentStep === 0) {
+      this.clientForm.markAllAsTouched();
+    } else if (this.currentStep === 1) {
+      this.orderForm.markAllAsTouched();
+    } else if (this.currentStep === 2) {
+      this.measurementForm.markAllAsTouched();
     }
 
-    return date.toISOString();
+    return false;
   }
 
-  private toDate(value: string | null): Date | null {
-    if (!value) {
+  private validateBeforeSubmit(): boolean {
+    if (this.clientForm.invalid) {
+      this.clientForm.markAllAsTouched();
+      return false;
+    }
+
+    if (this.orderForm.invalid) {
+      this.orderForm.markAllAsTouched();
+      return false;
+    }
+
+    if (this.measurementModeForm.invalid) {
+      this.measurementModeForm.markAllAsTouched();
+      return false;
+    }
+
+    return true;
+  }
+
+  private prepareForNextItem(): void {
+    const dueDate = this.orderForm.getRawValue().dueDate;
+    const notes = this.orderForm.getRawValue().notes ?? '';
+
+    this.orderForm.reset({
+      itemTypeId: null,
+      quantity: 1,
+      color: '',
+      material: '',
+      dueDate,
+      notes
+    });
+    this.measurementModeForm.patchValue({ useCurrentMeasurements: true });
+    this.selectedItemTypeName = '';
+    this.selectedTemplateFields = [];
+    this.resetMeasurementForm();
+
+    this.currentStep = 1;
+    this.stepper.selectedIndex = 1;
+  }
+
+  private resolveClientId(): number | null {
+    if (this.scopedClientId) {
+      return this.scopedClientId;
+    }
+
+    const id = this.clientForm.getRawValue().clientId;
+    return typeof id === 'number' && Number.isInteger(id) && id > 0 ? id : null;
+  }
+
+  private loadScopedClient(clientId: number): void {
+    this.clientsService
+      .getClientById(clientId)
+      .pipe(
+        catchError(() => {
+          this.snackBar.open('Could not load selected client details.', 'Close', { duration: 2500 });
+          return of(null);
+        })
+      )
+      .subscribe((client) => {
+        if (client) {
+          this.clientForm.patchValue({
+            clientId: client.id,
+            clientName: client.fullName,
+            phone: client.phone
+          });
+        }
+
+        this.clientForm.disable({ emitEvent: false });
+      });
+  }
+
+  private loadClientProfile(clientId: number): void {
+    this.isLoadingClientProfile = true;
+
+    this.measurementsService
+      .getMeasurementProfile(clientId)
+      .pipe(
+        catchError(() => {
+          this.snackBar.open('Could not load client measurements.', 'Close', { duration: 2500 });
+          return of(null);
+        }),
+        finalize(() => {
+          this.isLoadingClientProfile = false;
+        })
+      )
+      .subscribe((profile) => {
+        this.clientProfileMeasurements = profile?.values ?? {};
+        this.applyProfileValuesToMeasurementForm();
+      });
+  }
+
+  private applyProfileValuesToMeasurementForm(): void {
+    if (Object.keys(this.measurementForm.controls).length === 0) {
+      return;
+    }
+
+    const patch: Record<string, number | null> = {};
+
+    for (const field of this.selectedTemplateFields) {
+      patch[field.key] =
+        field.key in this.clientProfileMeasurements ? this.clientProfileMeasurements[field.key] : null;
+    }
+
+    this.measurementForm.patchValue(patch);
+  }
+
+  private areRequiredMeasurementsSatisfied(): boolean {
+    for (const field of this.selectedTemplateFields) {
+      if (!field.required) {
+        continue;
+      }
+
+      const raw = this.measurementForm.get(field.key)?.value;
+      if (raw === null || raw === undefined || raw === '') {
+        return false;
+      }
+
+      const numeric = Number(raw);
+      if (!Number.isFinite(numeric)) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  private buildOrderItemPayload(): CreateOrderPayload['items'][number] {
+    const useCurrent = this.measurementModeForm.value.useCurrentMeasurements ?? true;
+    const itemTypeId = this.orderForm.value.itemTypeId ?? 0;
+    const quantity = Number(this.orderForm.value.quantity ?? 1);
+    const color = this.orderForm.value.color?.trim() ?? '';
+    const material = this.orderForm.value.material?.trim() ?? '';
+
+    if (useCurrent) {
+      const additions = this.toProfileFillInsInput();
+      const hasAdditions = Object.keys(additions).length > 0;
+
+      return {
+        itemTypeId,
+        quantity,
+        color,
+        material,
+        useCurrentMeasurements: true,
+        ...(hasAdditions ? { measurementsInput: additions } : {})
+      };
+    }
+
+    return {
+      itemTypeId,
+      quantity,
+      color,
+      material,
+      useCurrentMeasurements: false,
+      measurementsInput: this.toMeasurementInput()
+    };
+  }
+
+  private toMeasurementInput(): Record<string, number> {
+    const values: Record<string, number> = {};
+
+    for (const field of this.selectedTemplateFields) {
+      const raw = this.measurementForm.get(field.key)?.value;
+      if (raw === null || raw === undefined || raw === '') {
+        continue;
+      }
+
+      const numeric = Number(raw);
+      if (!Number.isFinite(numeric)) {
+        continue;
+      }
+
+      values[field.key] = numeric;
+    }
+
+    return values;
+  }
+
+  private toProfileFillInsInput(): Record<string, number> {
+    const values: Record<string, number> = {};
+
+    for (const field of this.selectedTemplateFields) {
+      if (this.hasProfileValue(field.key)) {
+        continue;
+      }
+
+      const raw = this.measurementForm.get(field.key)?.value;
+      if (raw === null || raw === undefined || raw === '') {
+        continue;
+      }
+
+      const numeric = Number(raw);
+      if (!Number.isFinite(numeric)) {
+        continue;
+      }
+
+      values[field.key] = numeric;
+    }
+
+    return values;
+  }
+
+  private hasProfileValue(fieldKey: string): boolean {
+    const value = this.clientProfileMeasurements[fieldKey];
+    return value !== null && value !== undefined && Number.isFinite(Number(value));
+  }
+
+  private toMissingMeasurementsMessage(err: HttpErrorResponse): string | null {
+    const body = err.error as { missingByItem?: Array<{ missingFields: string[] }> } | null;
+    if (!body?.missingByItem?.length) {
       return null;
     }
 
-    const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? null : date;
+    const allMissing = body.missingByItem.flatMap((item) => item.missingFields);
+    const uniqueMissing = Array.from(new Set(allMissing));
+    if (!uniqueMissing.length) {
+      return null;
+    }
+
+    return `Missing required measurements: ${uniqueMissing.join(', ')}`;
   }
 }

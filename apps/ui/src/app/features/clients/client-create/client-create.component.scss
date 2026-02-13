@@ -2,9 +2,12 @@
   padding: 16px;
 }
 
-.inner-card {
-  margin-top: 12px;
-  padding: 16px;
+.section + .section {
+  margin-top: 16px;
+}
+
+.section h3 {
+  margin: 0 0 12px;
 }
 
 .grid {
@@ -17,28 +20,11 @@
   grid-column: 1 / -1;
 }
 
-.tab-actions {
-  margin-top: 8px;
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.orders-table {
-  width: 100%;
-}
-
 .loading-state {
-  min-height: 180px;
+  min-height: 120px;
   display: grid;
   place-items: center;
-  gap: 12px;
-}
-
-.measurement-hint {
-  margin: 0 0 12px;
-  color: #5f6368;
-  font-size: 0.9rem;
+  gap: 10px;
 }
 
 @media (max-width: 760px) {
