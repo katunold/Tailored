@@ -1,5 +1,5 @@
 import { DatePipe } from '@angular/common';
-import { AfterViewInit, ChangeDetectorRef, Component, ViewChild, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, ViewChild, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -52,9 +52,20 @@ interface OrderRow {
   templateUrl: './orders-list.component.html',
   styleUrl: './orders-list.component.scss'
 })
-export class OrdersListComponent implements AfterViewInit {
-  @ViewChild(MatPaginator) paginator!: MatPaginator;
-  @ViewChild(MatSort) sort!: MatSort;
+export class OrdersListComponent {
+  @ViewChild(MatPaginator) set paginator(value: MatPaginator | undefined) {
+    if (!value) {
+      return;
+    }
+    this.dataSource.paginator = value;
+  }
+
+  @ViewChild(MatSort) set sort(value: MatSort | undefined) {
+    if (!value) {
+      return;
+    }
+    this.dataSource.sort = value;
+  }
 
   protected readonly quickFilters = ORDER_STATUSES;
   protected readonly displayedColumns = ['id', 'client', 'item', 'status', 'deliveryDate', 'actions'];
@@ -80,13 +91,20 @@ export class OrdersListComponent implements AfterViewInit {
 
       return matchesQuery && matchesStatus;
     };
+    this.dataSource.sortingDataAccessor = (row: OrderRow, sortHeaderId: string): string | number => {
+      if (sortHeaderId === 'deliveryDate') {
+        return row.deliveryDate ? new Date(row.deliveryDate).getTime() : 0;
+      }
+
+      if (sortHeaderId === 'id') {
+        return row.id;
+      }
+
+      const value = row[sortHeaderId as keyof OrderRow];
+      return typeof value === 'string' ? value.toLowerCase() : String(value ?? '').toLowerCase();
+    };
 
     this.refresh();
-  }
-
-  ngAfterViewInit(): void {
-    this.dataSource.paginator = this.paginator;
-    this.dataSource.sort = this.sort;
   }
 
   protected refresh(): void {

@@ -1,4 +1,4 @@
-import { AfterViewInit, ChangeDetectorRef, Component, ViewChild, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, ViewChild, inject } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -22,6 +22,8 @@ interface ClientRow {
   phone: string;
   createdOn: string;
   updatedAt: string;
+  createdAtMs: number;
+  updatedAtMs: number;
 }
 
 @Component({
@@ -45,9 +47,20 @@ interface ClientRow {
   templateUrl: './clients-list.component.html',
   styleUrl: './clients-list.component.scss'
 })
-export class ClientsListComponent implements AfterViewInit {
-  @ViewChild(MatPaginator) paginator!: MatPaginator;
-  @ViewChild(MatSort) sort!: MatSort;
+export class ClientsListComponent {
+  @ViewChild(MatPaginator) set paginator(value: MatPaginator | undefined) {
+    if (!value) {
+      return;
+    }
+    this.dataSource.paginator = value;
+  }
+
+  @ViewChild(MatSort) set sort(value: MatSort | undefined) {
+    if (!value) {
+      return;
+    }
+    this.dataSource.sort = value;
+  }
 
   protected readonly displayedColumns = ['fullName', 'phone', 'createdOn', 'updatedAt', 'actions'];
   protected isLoading = true;
@@ -65,13 +78,25 @@ export class ClientsListComponent implements AfterViewInit {
       const q = filter.trim().toLowerCase();
       return !q || `${row.id} ${row.fullName} ${row.phone} ${row.createdOn}`.toLowerCase().includes(q);
     };
+    this.dataSource.sortingDataAccessor = (row: ClientRow, sortHeaderId: string): string | number => {
+      if (sortHeaderId === 'createdOn') {
+        return row.createdAtMs;
+      }
+      if (sortHeaderId === 'updatedAt') {
+        return row.updatedAtMs;
+      }
+      if (sortHeaderId === 'fullName') {
+        return row.fullName.toLowerCase();
+      }
+      if (sortHeaderId === 'phone') {
+        return row.phone.toLowerCase();
+      }
+
+      const value = row[sortHeaderId as keyof ClientRow];
+      return typeof value === 'number' ? value : String(value ?? '').toLowerCase();
+    };
 
     this.refresh();
-  }
-
-  ngAfterViewInit(): void {
-    this.dataSource.paginator = this.paginator;
-    this.dataSource.sort = this.sort;
   }
 
   protected refresh(): void {
@@ -117,12 +142,17 @@ export class ClientsListComponent implements AfterViewInit {
   }
 
   private toRow(client: ClientDto): ClientRow {
+    const createdAt = new Date(client.createdAt);
+    const updatedAt = new Date(client.updatedAt);
+
     return {
       id: client.id,
       fullName: client.fullName,
       phone: client.phone,
-      createdOn: new Date(client.createdAt).toLocaleDateString(),
-      updatedAt: new Date(client.updatedAt).toLocaleDateString()
+      createdOn: createdAt.toLocaleDateString(),
+      updatedAt: updatedAt.toLocaleDateString(),
+      createdAtMs: createdAt.getTime(),
+      updatedAtMs: updatedAt.getTime()
     };
   }
 }

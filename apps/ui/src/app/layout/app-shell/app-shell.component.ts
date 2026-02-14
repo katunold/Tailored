@@ -10,13 +10,14 @@ import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
-import { map, startWith } from 'rxjs';
+import { catchError, debounceTime, distinctUntilChanged, forkJoin, map, of, startWith, switchMap, take } from 'rxjs';
+import { ClientDto, ClientsService } from '../../features/clients/clients.service';
+import { ClientOrderRow, OrdersService } from '../../features/orders/orders.service';
 
 interface SearchEntry {
   label: string;
   subtitle: string;
   route: string;
-  tokens: string[];
 }
 
 @Component({
@@ -42,33 +43,8 @@ interface SearchEntry {
 export class AppShellComponent {
   private readonly router = inject(Router);
   private readonly snackBar = inject(MatSnackBar);
-
-  private readonly searchEntries: SearchEntry[] = [
-    {
-      label: 'ORD-1042',
-      subtitle: 'Order - Avery Cole',
-      route: '/orders/ORD-1042',
-      tokens: ['ord-1042', 'avery', 'cole', 'wedding suit']
-    },
-    {
-      label: 'ORD-1043',
-      subtitle: 'Order - Mina Aziz',
-      route: '/orders/ORD-1043',
-      tokens: ['ord-1043', 'mina', 'aziz', 'evening gown']
-    },
-    {
-      label: 'CL-101',
-      subtitle: 'Client - Avery Cole - +1 555 0121',
-      route: '/clients/CL-101',
-      tokens: ['cl-101', 'avery', 'cole', '555', '0121']
-    },
-    {
-      label: 'CL-102',
-      subtitle: 'Client - Mina Aziz - +1 555 0155',
-      route: '/clients/CL-102',
-      tokens: ['cl-102', 'mina', 'aziz', '555', '0155']
-    }
-  ];
+  private readonly clientsService = inject(ClientsService);
+  private readonly ordersService = inject(OrdersService);
 
   protected readonly searchControl = new FormControl<string | SearchEntry>('', {
     nonNullable: true
@@ -76,8 +52,10 @@ export class AppShellComponent {
 
   protected readonly filteredResults$ = this.searchControl.valueChanges.pipe(
     startWith(''),
-    map((value) => (typeof value === 'string' ? value : value?.label ?? '')),
-    map((query) => this.filterEntries(query))
+    map((value) => (typeof value === 'string' ? value.trim() : '')),
+    debounceTime(200),
+    distinctUntilChanged(),
+    switchMap((query) => this.searchEntries(query))
   );
 
   protected displaySearch(value: string | SearchEntry | null): string {
@@ -98,16 +76,24 @@ export class AppShellComponent {
       return;
     }
 
-    const [firstMatch] = this.filterEntries(raw);
-
-    if (!firstMatch) {
-      this.snackBar.open('No matching client or order found.', 'Close', {
-        duration: 2200
-      });
+    const query = raw.trim();
+    if (!query) {
       return;
     }
 
-    this.goToResult(firstMatch);
+    this.searchEntries(query)
+      .pipe(take(1))
+      .subscribe((results) => {
+        const [firstMatch] = results;
+        if (!firstMatch) {
+          this.snackBar.open('No matching client or order found.', 'Close', {
+            duration: 2200
+          });
+          return;
+        }
+
+        this.goToResult(firstMatch);
+      });
   }
 
   protected goToResult(result: SearchEntry): void {
@@ -115,16 +101,35 @@ export class AppShellComponent {
     this.searchControl.setValue('');
   }
 
-  private filterEntries(query: string): SearchEntry[] {
-    const normalized = query.trim().toLowerCase();
-
-    if (!normalized) {
-      return this.searchEntries;
+  private searchEntries(query: string) {
+    if (!query) {
+      return of([] as SearchEntry[]);
     }
 
-    return this.searchEntries.filter((entry) => {
-      const text = `${entry.label} ${entry.subtitle} ${entry.tokens.join(' ')}`.toLowerCase();
-      return text.includes(normalized);
-    });
+    return forkJoin({
+      clients: this.clientsService.getClients(query).pipe(catchError(() => of([] as ClientDto[]))),
+      orders: this.ordersService.getOrders(query).pipe(catchError(() => of([] as ClientOrderRow[])))
+    }).pipe(
+      map(({ clients, orders }) => [
+        ...orders.slice(0, 5).map((order) => this.toOrderSearchEntry(order)),
+        ...clients.slice(0, 5).map((client) => this.toClientSearchEntry(client))
+      ])
+    );
+  }
+
+  private toOrderSearchEntry(order: ClientOrderRow): SearchEntry {
+    return {
+      label: `Order #${order.id}`,
+      subtitle: `${order.client} - ${order.item}`,
+      route: `/orders/${order.id}`
+    };
+  }
+
+  private toClientSearchEntry(client: ClientDto): SearchEntry {
+    return {
+      label: client.fullName,
+      subtitle: `Client #${client.id} - ${client.phone}`,
+      route: `/clients/${client.id}`
+    };
   }
 }

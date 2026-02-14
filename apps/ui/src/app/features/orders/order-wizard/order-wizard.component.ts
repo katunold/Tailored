@@ -1,4 +1,4 @@
-import { Component, OnInit, ViewChild, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit, ViewChild, inject } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -56,15 +56,22 @@ export class OrderWizardComponent implements OnInit {
   private readonly ordersService = inject(OrdersService);
   private readonly clientsService = inject(ClientsService);
   private readonly measurementsService = inject(MeasurementsService);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   protected currentStep = 0;
   protected isSubmitting = false;
   protected isLoadingItemTypes = false;
   protected isLoadingTemplate = false;
   protected isLoadingClientProfile = false;
+  protected isLoadingClients = false;
+  protected isCreatingClient = false;
+  protected showNewClientForm = false;
 
   protected scopedClientId: number | null = null;
   protected itemTypes: OrderItemType[] = [];
+  protected clients: Array<{ id: number; fullName: string; phone: string; notes: string | null }> = [];
+  protected filteredClients: Array<{ id: number; fullName: string; phone: string; notes: string | null }> = [];
+  protected clientSearchTerm = '';
   protected selectedItemTypeName = '';
   protected selectedTemplateFields: OrderItemTemplateField[] = [];
   protected clientProfileMeasurements: Record<string, number> = {};
@@ -74,6 +81,11 @@ export class OrderWizardComponent implements OnInit {
     clientId: [null as number | null, Validators.required],
     clientName: [''],
     phone: ['']
+  });
+  protected readonly newClientForm = this.fb.group({
+    fullName: ['', Validators.required],
+    phone: ['', Validators.required],
+    notes: ['']
   });
 
   protected readonly orderForm = this.fb.group({
@@ -99,9 +111,46 @@ export class OrderWizardComponent implements OnInit {
       this.currentStep = 1;
       this.loadScopedClient(this.scopedClientId);
       this.loadClientProfile(this.scopedClientId);
+    } else {
+      this.loadClients();
     }
 
     this.loadItemTypes();
+
+    this.clientForm.controls.clientId.valueChanges.subscribe((clientId) => {
+      if (this.scopedClientId !== null) {
+        return;
+      }
+
+      if (!clientId) {
+        this.clientForm.patchValue(
+          {
+            clientName: '',
+            phone: ''
+          },
+          { emitEvent: false }
+        );
+        this.clientProfileMeasurements = {};
+        this.applyProfileValuesToMeasurementForm();
+        return;
+      }
+
+      const selectedClient = this.clients.find((client) => client.id === clientId);
+      if (!selectedClient) {
+        return;
+      }
+
+      this.clientForm.patchValue(
+        {
+          clientName: selectedClient.fullName,
+          phone: selectedClient.phone
+        },
+        { emitEvent: false }
+      );
+      this.clientSearchTerm = '';
+      this.filterClients('');
+      this.loadClientProfile(selectedClient.id);
+    });
 
     this.orderForm.controls.itemTypeId.valueChanges.subscribe((itemTypeId) => {
       if (!itemTypeId) {
@@ -251,7 +300,7 @@ export class OrderWizardComponent implements OnInit {
     const orderStepIndex = 1;
     const measurementStepIndex = 2;
 
-    if (this.isSubmitting || this.isLoadingItemTypes || this.isLoadingTemplate || this.isLoadingClientProfile) {
+    if (this.isSubmitting || this.isLoadingClients || this.isCreatingClient) {
       return false;
     }
 
@@ -260,10 +309,16 @@ export class OrderWizardComponent implements OnInit {
     }
 
     if (this.currentStep === orderStepIndex) {
+      if (this.isLoadingItemTypes) {
+        return false;
+      }
       return this.orderForm.valid;
     }
 
     if (this.currentStep === measurementStepIndex) {
+      if (this.isLoadingTemplate || this.isLoadingClientProfile) {
+        return false;
+      }
       return this.areRequiredMeasurementsSatisfied();
     }
 
@@ -287,6 +342,175 @@ export class OrderWizardComponent implements OnInit {
       .subscribe((itemTypes) => {
         this.itemTypes = itemTypes;
       });
+  }
+
+  protected filteredClientCountLabel(): string {
+    return `${this.filteredClients.length} available`;
+  }
+
+  protected hasSelectedClient(): boolean {
+    const clientId = this.clientForm.getRawValue().clientId;
+    return typeof clientId === 'number' && Number.isInteger(clientId) && clientId > 0;
+  }
+
+  protected onClientSearchInput(event: Event): void {
+    const value = (event.target as HTMLInputElement).value ?? '';
+    this.clientSearchTerm = value;
+    this.filterClients(value);
+  }
+
+  protected onClientSelectOpened(isOpen: boolean): void {
+    if (isOpen) {
+      this.filterClients(this.clientSearchTerm);
+      return;
+    }
+
+    this.clientSearchTerm = '';
+    this.filterClients('');
+  }
+
+  protected stopClientFilterEvent(event: Event): void {
+    event.stopPropagation();
+  }
+
+  protected addNewClientToOrder(): void {
+    if (this.newClientForm.invalid) {
+      this.newClientForm.markAllAsTouched();
+      return;
+    }
+
+    const payload = {
+      fullName: this.newClientForm.value.fullName?.trim() ?? '',
+      phone: this.newClientForm.value.phone?.trim() ?? '',
+      notes: this.newClientForm.value.notes?.trim() || null
+    };
+    const duplicate = this.findClientByPhone(payload.phone);
+    if (duplicate) {
+      this.snackBar.open('Phone number already belongs to an existing client.', 'Close', { duration: 2800 });
+      return;
+    }
+
+    this.isCreatingClient = true;
+    this.clientsService
+      .createClient(payload)
+      .pipe(
+        catchError((err: HttpErrorResponse) => {
+          if (this.isDuplicatePhoneError(err)) {
+            this.snackBar.open('Phone number already belongs to an existing client.', 'Close', { duration: 2800 });
+          } else {
+            this.snackBar.open('Could not create client.', 'Close', { duration: 2500 });
+          }
+          return of(null);
+        }),
+        finalize(() => {
+          this.isCreatingClient = false;
+        })
+      )
+      .subscribe((createdClient) => {
+        if (!createdClient) {
+          return;
+        }
+
+        this.clients = [createdClient, ...this.clients];
+        this.clientSearchTerm = '';
+        this.filterClients('');
+        this.clientForm.patchValue({
+          clientId: createdClient.id
+        });
+        this.showNewClientForm = false;
+        this.newClientForm.reset({
+          fullName: '',
+          phone: '',
+          notes: ''
+        });
+        this.snackBar.open('Client added and selected for this order.', 'Close', { duration: 2200 });
+      });
+  }
+
+  protected openNewClientForm(): void {
+    this.showNewClientForm = true;
+    this.clientSearchTerm = '';
+    this.filterClients('');
+    this.clientForm.patchValue(
+      {
+        clientId: null,
+        clientName: '',
+        phone: ''
+      },
+      { emitEvent: false }
+    );
+    this.clientProfileMeasurements = {};
+    this.applyProfileValuesToMeasurementForm();
+  }
+
+  protected cancelNewClientForm(): void {
+    this.showNewClientForm = false;
+    this.newClientForm.reset({
+      fullName: '',
+      phone: '',
+      notes: ''
+    });
+  }
+
+  private loadClients(): void {
+    this.isLoadingClients = true;
+
+    this.clientsService
+      .getClients()
+      .pipe(
+        catchError(() => {
+          this.snackBar.open('Could not load clients.', 'Close', { duration: 2500 });
+          return of([]);
+        }),
+        finalize(() => {
+          this.isLoadingClients = false;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe((clients) => {
+        this.clients = clients;
+        this.filterClients(this.clientSearchTerm);
+        this.cdr.detectChanges();
+      });
+  }
+
+  private filterClients(query: string): void {
+    const trimmed = query.trim().toLowerCase();
+    if (!trimmed) {
+      this.filteredClients = [...this.clients];
+      return;
+    }
+
+    this.filteredClients = this.clients.filter((client) =>
+      `${client.fullName} ${client.phone}`.toLowerCase().includes(trimmed)
+    );
+  }
+
+  private findClientByPhone(phone: string): { id: number; fullName: string; phone: string; notes: string | null } | null {
+    const normalizedTarget = this.normalizePhone(phone);
+    if (!normalizedTarget) {
+      return null;
+    }
+
+    const match =
+      this.clients.find((client) => this.normalizePhone(client.phone) === normalizedTarget) ??
+      null;
+
+    return match;
+  }
+
+  private normalizePhone(phone: string): string {
+    const digitsOnly = phone.replace(/\D/g, '');
+    return digitsOnly || phone.trim().toLowerCase();
+  }
+
+  private isDuplicatePhoneError(err: HttpErrorResponse): boolean {
+    if (err.status === 409) {
+      return true;
+    }
+
+    const message = String((err.error as { error?: string } | null)?.error ?? '').toLowerCase();
+    return message.includes('unique') || message.includes('phone');
   }
 
   private loadTemplateFields(itemTypeId: number): void {

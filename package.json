@@ -8,7 +8,7 @@
   ],
   "scripts": {
     "dev": "concurrently \"npm run dev:api\" \"npm run dev:ui\" \"npm run dev:desktop\"",
-    "dev:ui": "npm -w apps/ui run dev",
+    "dev:ui": "npm -w apps/ui run start",
     "dev:api": "npm -w apps/api run dev",
     "dev:desktop": "wait-on http://localhost:4200 && UI_DEV_URL=http://localhost:4200 API_DEV=1 npm -w apps/desktop run dev",
     "lint": "echo \"lint not yet configured\"",

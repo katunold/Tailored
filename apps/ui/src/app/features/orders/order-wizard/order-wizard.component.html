@@ -2,26 +2,97 @@
   title="New Order"
   [breadcrumbs]="['Orders', 'New Order']"
   subtitle="Configure order item, measurements, and review before submission."
->
-  <div header-actions>
-    <button mat-flat-button color="primary" (click)="submitOrder()" [disabled]="isSubmitting">Submit</button>
-  </div>
-</app-page-header>
+></app-page-header>
 
 <mat-card class="page-card" appearance="raised">
   <mat-stepper linear [selectedIndex]="currentStep" (selectionChange)="onStepChange($event)" #stepper>
     <mat-step [stepControl]="clientForm" label="Client">
-      <form [formGroup]="clientForm" class="step-grid">
-        <mat-form-field appearance="outline">
-          <mat-label>Client Name</mat-label>
-          <input matInput formControlName="clientName" />
-        </mat-form-field>
+      @if (isLoadingClients && scopedClientId === null) {
+        <section class="loading-state">
+          <mat-spinner diameter="32"></mat-spinner>
+          <p>Loading clients...</p>
+        </section>
+      } @else {
+        <form [formGroup]="clientForm" class="step-grid">
+          @if (scopedClientId === null && !showNewClientForm) {
+            <mat-form-field appearance="outline" class="span-all">
+              <mat-label>Select client</mat-label>
+              <mat-select formControlName="clientId" (openedChange)="onClientSelectOpened($event)">
+                <mat-option disabled class="client-filter-option">
+                  <input
+                    matInput
+                    class="client-filter-input"
+                    placeholder="Filter by name or phone"
+                    [value]="clientSearchTerm"
+                    (input)="onClientSearchInput($event)"
+                    (keydown)="stopClientFilterEvent($event)"
+                    (click)="stopClientFilterEvent($event)"
+                  />
+                </mat-option>
+                <mat-option disabled>{{ filteredClientCountLabel() }}</mat-option>
+                @if (filteredClients.length === 0) {
+                  <mat-option disabled>No matching clients</mat-option>
+                }
+                @for (client of filteredClients; track client.id) {
+                  <mat-option [value]="client.id">{{ client.fullName }} | {{ client.phone }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+          }
 
-        <mat-form-field appearance="outline">
-          <mat-label>Phone</mat-label>
-          <input matInput formControlName="phone" />
-        </mat-form-field>
-      </form>
+          @if (scopedClientId !== null || hasSelectedClient()) {
+            <mat-form-field appearance="outline">
+              <mat-label>Client Name</mat-label>
+              <input matInput formControlName="clientName" readonly />
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Phone</mat-label>
+              <input matInput formControlName="phone" readonly />
+            </mat-form-field>
+          }
+        </form>
+
+        @if (scopedClientId === null) {
+          <section class="new-client-section">
+            @if (!showNewClientForm) {
+              <button mat-stroked-button type="button" (click)="openNewClientForm()">Add New Client</button>
+            } @else {
+              <form [formGroup]="newClientForm" class="step-grid">
+                <mat-form-field appearance="outline">
+                  <mat-label>New Client Name</mat-label>
+                  <input matInput formControlName="fullName" />
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                  <mat-label>New Client Phone</mat-label>
+                  <input matInput formControlName="phone" />
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" class="span-all">
+                  <mat-label>Notes</mat-label>
+                  <textarea matInput rows="2" formControlName="notes"></textarea>
+                </mat-form-field>
+              </form>
+
+              <div class="new-client-actions">
+                <button mat-button type="button" (click)="cancelNewClientForm()" [disabled]="isCreatingClient">
+                  Cancel
+                </button>
+                <button
+                  mat-flat-button
+                  color="primary"
+                  type="button"
+                  (click)="addNewClientToOrder()"
+                  [disabled]="isCreatingClient"
+                >
+                  Add Client
+                </button>
+              </div>
+            }
+          </section>
+        }
+      }
     </mat-step>
 
     <mat-step [stepControl]="orderForm" label="Order">
