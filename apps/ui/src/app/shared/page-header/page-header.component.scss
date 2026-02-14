@@ -2,10 +2,28 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
 }
 
 h1 { margin: 0; font-size: 1.5rem; }
 .crumbs, .subtitle { margin: 4px 0 0; opacity: 0.75; }
-.actions { display: flex; gap: 8px; }
+.actions { display: flex; gap: var(--touch-gap); }
+
+@media (max-width: 760px) {
+  .page-header {
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  h1 {
+    font-size: 1.25rem;
+  }
+
+  .actions {
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+}

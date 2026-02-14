@@ -1,12 +1,12 @@
 .page-card {
-  padding: 16px;
+  padding: var(--space-card);
 }
 
 .step-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 12px;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
 }
 
 .notes-field {
@@ -20,14 +20,14 @@
 .summary-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px 16px;
-  margin-top: 12px;
+  gap: var(--space-2) var(--space-3);
+  margin-top: var(--space-2);
 }
 
 .queued-items,
 .current-item {
-  margin-top: 14px;
-  padding: 12px;
+  margin-top: var(--space-2);
+  padding: var(--space-2);
   border: 1px solid var(--color-divider);
   border-radius: 10px;
 }
@@ -87,22 +87,28 @@
   margin-top: 10px;
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
+  gap: var(--touch-gap);
 }
 
 .sticky-actions {
   position: sticky;
   bottom: 0;
-  margin-top: 16px;
-  padding: 12px 0 0;
+  z-index: 5;
+  margin-top: var(--space-3);
+  padding: var(--space-2) 0 calc(var(--space-2) + env(safe-area-inset-bottom));
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
-  background: var(--color-surface);
+  gap: var(--touch-gap);
+  background: color-mix(in srgb, var(--color-surface) 94%, transparent);
+  backdrop-filter: blur(4px);
   border-top: 1px solid var(--color-divider);
 }
 
 @media (max-width: 760px) {
+  .page-card {
+    padding: var(--space-card);
+  }
+
   .step-grid {
     grid-template-columns: 1fr;
   }
@@ -112,7 +118,13 @@
   }
 
   .sticky-actions {
+    justify-content: stretch;
     flex-wrap: wrap;
+  }
+
+  .sticky-actions button {
+    flex: 1 1 calc(50% - var(--touch-gap));
+    min-width: 0;
   }
 
   .queued-item-row {

@@ -1,16 +1,16 @@
 .page-card {
-  padding: 16px;
+  padding: var(--space-card);
 }
 
 .inner-card {
-  margin-top: 12px;
-  padding: 16px;
+  margin-top: var(--space-2);
+  padding: var(--space-card);
 }
 
 .grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: var(--space-2);
 }
 
 .span-all {
@@ -21,11 +21,16 @@
   margin-top: 8px;
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
+  gap: var(--touch-gap);
 }
 
 .orders-table {
   width: 100%;
+  min-width: 680px;
+}
+
+.table-wrap {
+  overflow-x: auto;
 }
 
 .loading-state {
@@ -42,7 +47,17 @@
 }
 
 @media (max-width: 760px) {
+  .page-card,
+  .inner-card {
+    padding: var(--space-card);
+  }
+
   .grid {
     grid-template-columns: 1fr;
+  }
+
+  .tab-actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
   }
 }

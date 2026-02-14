@@ -1,16 +1,29 @@
 import { AsyncPipe } from '@angular/common';
 import { Component, inject } from '@angular/core';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
+import { BreakpointObserver } from '@angular/cdk/layout';
 import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatListModule } from '@angular/material/list';
-import { MatSidenavModule } from '@angular/material/sidenav';
+import { MatSidenav, MatSidenavModule } from '@angular/material/sidenav';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
-import { catchError, debounceTime, distinctUntilChanged, forkJoin, map, of, startWith, switchMap, take } from 'rxjs';
+import {
+  catchError,
+  debounceTime,
+  distinctUntilChanged,
+  forkJoin,
+  map,
+  of,
+  shareReplay,
+  startWith,
+  switchMap,
+  take
+} from 'rxjs';
 import { ClientDto, ClientsService } from '../../features/clients/clients.service';
 import { ClientOrderRow, OrdersService } from '../../features/orders/orders.service';
 
@@ -33,6 +46,7 @@ interface SearchEntry {
     MatToolbarModule,
     MatListModule,
     MatButtonModule,
+    MatIconModule,
     MatInputModule,
     MatFormFieldModule,
     MatSnackBarModule
@@ -43,8 +57,13 @@ interface SearchEntry {
 export class AppShellComponent {
   private readonly router = inject(Router);
   private readonly snackBar = inject(MatSnackBar);
+  private readonly breakpointObserver = inject(BreakpointObserver);
   private readonly clientsService = inject(ClientsService);
   private readonly ordersService = inject(OrdersService);
+  protected readonly isMobile$ = this.breakpointObserver.observe('(max-width: 960px)').pipe(
+    map((result) => result.matches),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
 
   protected readonly searchControl = new FormControl<string | SearchEntry>('', {
     nonNullable: true
@@ -99,6 +118,14 @@ export class AppShellComponent {
   protected goToResult(result: SearchEntry): void {
     this.router.navigateByUrl(result.route);
     this.searchControl.setValue('');
+  }
+
+  protected closeSidenavOnMobile(sidenav: MatSidenav): void {
+    this.isMobile$.pipe(take(1)).subscribe((isMobile) => {
+      if (isMobile) {
+        sidenav.close();
+      }
+    });
   }
 
   private searchEntries(query: string) {
