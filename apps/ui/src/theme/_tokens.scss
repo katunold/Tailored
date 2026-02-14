@@ -12,6 +12,12 @@ $space-1: 8px;
 $space-2: 12px;
 $space-3: 16px;
 $space-4: 24px;
+$touch-target-min: 44px;
+$touch-gap: 10px;
+$space-page: 24px;
+$space-card: 16px;
+$space-page-mobile: 12px;
+$space-card-mobile: 12px;
 
 @mixin css-vars {
   --color-primary: #{$color-primary};
@@ -27,4 +33,10 @@ $space-4: 24px;
   --space-2: #{$space-2};
   --space-3: #{$space-3};
   --space-4: #{$space-4};
+  --touch-target-min: #{$touch-target-min};
+  --touch-gap: #{$touch-gap};
+  --space-page: #{$space-page};
+  --space-card: #{$space-card};
+  --space-page-mobile: #{$space-page-mobile};
+  --space-card-mobile: #{$space-card-mobile};
 }

@@ -1,12 +1,12 @@
 .page-card {
-  padding: 16px;
+  padding: var(--space-card);
 }
 
 .toolbar-row {
   display: flex;
-  gap: 12px;
+  gap: var(--touch-gap);
   align-items: center;
-  margin-bottom: 12px;
+  margin-bottom: var(--space-2);
 }
 
 .search-field {
@@ -26,6 +26,7 @@
 
 .clients-table {
   width: 100%;
+  min-width: 720px;
 }
 
 @media (max-width: 900px) {
@@ -35,5 +36,20 @@
 
   .search-field {
     min-width: 100%;
+  }
+
+  .toolbar-row button {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 560px) {
+  .page-card {
+    padding: var(--space-card);
+  }
+
+  .toolbar-row {
+    gap: var(--touch-gap);
   }
 }

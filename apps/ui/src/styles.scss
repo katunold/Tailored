@@ -37,3 +37,23 @@ body {
   color: var(--color-text-primary);
   font-family: Roboto, 'Helvetica Neue', sans-serif;
 }
+
+.mat-mdc-button-base {
+  min-height: var(--touch-target-min);
+}
+
+.mat-mdc-icon-button.mat-mdc-button-base {
+  width: var(--touch-target-min);
+  height: var(--touch-target-min);
+}
+
+.mat-mdc-menu-item {
+  min-height: var(--touch-target-min);
+}
+
+@media (max-width: 760px) {
+  :root {
+    --space-page: var(--space-page-mobile);
+    --space-card: var(--space-card-mobile);
+  }
+}

@@ -1,14 +1,29 @@
 <mat-sidenav-container class="shell-container">
-  <mat-sidenav mode="side" opened class="shell-nav">
+  <mat-sidenav
+    #sidenav
+    [mode]="(isMobile$ | async) ? 'over' : 'side'"
+    [opened]="!(isMobile$ | async)"
+    class="shell-nav"
+  >
     <div class="brand">Tailored</div>
     <mat-nav-list>
-      <a mat-list-item routerLink="/orders" routerLinkActive="active-link">Orders</a>
-      <a mat-list-item routerLink="/clients" routerLinkActive="active-link">Clients</a>
+      <a mat-list-item routerLink="/orders" routerLinkActive="active-link" (click)="closeSidenavOnMobile(sidenav)">
+        Orders
+      </a>
+      <a mat-list-item routerLink="/clients" routerLinkActive="active-link" (click)="closeSidenavOnMobile(sidenav)">
+        Clients
+      </a>
     </mat-nav-list>
   </mat-sidenav>
 
   <mat-sidenav-content>
     <mat-toolbar class="shell-toolbar">
+      @if (isMobile$ | async) {
+        <button mat-icon-button type="button" (click)="sidenav.toggle()" aria-label="Open navigation">
+          <mat-icon>menu</mat-icon>
+        </button>
+      }
+
       <form class="search-form" (submit)="onSearchSubmit($event)">
         <mat-form-field subscriptSizing="dynamic" appearance="outline" class="search-field">
           <mat-label>Search by name, phone, or order #</mat-label>
@@ -40,7 +55,6 @@
         }
       </mat-autocomplete>
 
-      <span class="toolbar-spacer"></span>
       <button mat-flat-button color="accent" routerLink="/orders/new">New Order</button>
     </mat-toolbar>
 
