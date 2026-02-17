@@ -14,6 +14,7 @@
     "dev:desktop": "wait-on http://localhost:4200 && UI_DEV_URL=http://localhost:4200 API_DEV=1 npm -w apps/desktop run dev",
     "build": "npm -w apps/api run build && npm -w apps/ui run build && npm -w apps/desktop run build",
     "start:desktop": "npm run build && npm -w apps/desktop run start",
+    "package:desktop": "npm -w apps/api run prisma:generate && npm run build && npm -w apps/desktop run package:linux",
     "lint": "echo \"lint not yet configured\"",
     "format": "echo \"format not yet configured\""
   },

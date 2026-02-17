@@ -1,5 +1,5 @@
 import { DatePipe } from '@angular/common';
-import { ChangeDetectorRef, Component, ViewChild, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, ViewChild } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -72,15 +72,16 @@ export class OrdersListComponent {
   protected isLoading = true;
   protected searchQuery = '';
 
-  private readonly snackBar = inject(MatSnackBar);
-  private readonly ordersService = inject(OrdersService);
-  private readonly cdr = inject(ChangeDetectorRef);
   private readonly selectedStatuses = new Set<OrderStatus>();
   private rows: OrderRow[] = [];
 
   protected readonly dataSource = new MatTableDataSource<OrderRow>([]);
 
-  constructor() {
+  constructor(
+    private readonly snackBar: MatSnackBar,
+    private readonly ordersService: OrdersService,
+    private readonly cdr: ChangeDetectorRef
+  ) {
     this.dataSource.filterPredicate = (row: OrderRow, filter: string): boolean => {
       const parsed = JSON.parse(filter) as { query: string; statuses: OrderStatus[] };
 

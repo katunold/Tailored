@@ -1,5 +1,5 @@
 import { AsyncPipe } from '@angular/common';
-import { Component, inject } from '@angular/core';
+import { Component } from '@angular/core';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { BreakpointObserver } from '@angular/cdk/layout';
 import { MatAutocompleteModule } from '@angular/material/autocomplete';
@@ -55,27 +55,32 @@ interface SearchEntry {
   styleUrl: './app-shell.component.scss'
 })
 export class AppShellComponent {
-  private readonly router = inject(Router);
-  private readonly snackBar = inject(MatSnackBar);
-  private readonly breakpointObserver = inject(BreakpointObserver);
-  private readonly clientsService = inject(ClientsService);
-  private readonly ordersService = inject(OrdersService);
-  protected readonly isMobile$ = this.breakpointObserver.observe('(max-width: 960px)').pipe(
-    map((result) => result.matches),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
-
+  protected readonly isMobile$;
   protected readonly searchControl = new FormControl<string | SearchEntry>('', {
     nonNullable: true
   });
+  protected readonly filteredResults$;
 
-  protected readonly filteredResults$ = this.searchControl.valueChanges.pipe(
-    startWith(''),
-    map((value) => (typeof value === 'string' ? value.trim() : '')),
-    debounceTime(200),
-    distinctUntilChanged(),
-    switchMap((query) => this.searchEntries(query))
-  );
+  constructor(
+    private readonly router: Router,
+    private readonly snackBar: MatSnackBar,
+    private readonly breakpointObserver: BreakpointObserver,
+    private readonly clientsService: ClientsService,
+    private readonly ordersService: OrdersService
+  ) {
+    this.isMobile$ = this.breakpointObserver.observe('(max-width: 960px)').pipe(
+      map((result) => result.matches),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+
+    this.filteredResults$ = this.searchControl.valueChanges.pipe(
+      startWith(''),
+      map((value) => (typeof value === 'string' ? value.trim() : '')),
+      debounceTime(200),
+      distinctUntilChanged(),
+      switchMap((query) => this.searchEntries(query))
+    );
+  }
 
   protected displaySearch(value: string | SearchEntry | null): string {
     if (!value) {

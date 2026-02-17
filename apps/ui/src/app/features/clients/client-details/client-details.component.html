@@ -62,14 +62,18 @@
             </section>
           } @else {
             <p class="measurement-hint">All fields are optional.</p>
-            <form [formGroup]="measurementForm" class="grid">
-              @for (field of measurementFields; track field.key) {
-                <mat-form-field appearance="outline">
-                  <mat-label>{{ field.label }}</mat-label>
-                  <input matInput type="number" [formControlName]="field.key" />
-                </mat-form-field>
-              }
-            </form>
+            @if (measurementFields.length === 0) {
+              <p class="measurement-hint">No measurement fields are configured yet.</p>
+            } @else {
+              <form [formGroup]="measurementForm" class="grid">
+                @for (field of measurementFields; track field.key) {
+                  <mat-form-field appearance="outline">
+                    <mat-label>{{ field.label }}</mat-label>
+                    <input matInput type="number" [formControlName]="field.key" />
+                  </mat-form-field>
+                }
+              </form>
+            }
           }
 
           <div class="tab-actions">

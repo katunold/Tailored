@@ -1,5 +1,5 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Injectable, inject } from '@angular/core';
+import { Injectable } from '@angular/core';
 import { Observable, map } from 'rxjs';
 import { OrderStatus } from '../../shared/status/status.types';
 import { resolveApiBase } from '../../core/api-base';
@@ -106,7 +106,8 @@ export interface OrderDetails {
 
 @Injectable({ providedIn: 'root' })
 export class OrdersService {
-  private readonly http = inject(HttpClient);
+  constructor(private readonly http: HttpClient) {}
+
   private readonly ordersUrl = `${resolveApiBase()}/api/orders`;
   private readonly itemTypesUrl = `${resolveApiBase()}/api/item-types`;
 

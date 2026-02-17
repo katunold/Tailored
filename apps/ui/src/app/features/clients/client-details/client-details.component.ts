@@ -240,6 +240,7 @@ export class ClientDetailsComponent implements OnInit {
 
         this.measurementForm.markAsPristine();
         this.measurementForm.markAsUntouched();
+        this.cdr.detectChanges();
       });
   }
 

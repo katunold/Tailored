@@ -2,19 +2,65 @@
   "name": "tailor-desktop",
   "private": true,
   "version": "0.0.0",
+  "description": "Tailored desktop application",
+  "homepage": "https://example.com/tailored",
+  "author": {
+    "name": "Tailored",
+    "email": "maintainer@example.com"
+  },
   "type": "module",
   "main": "dist/main.js",
   "scripts": {
     "dev": "npm run build && electron dist/main.js",
-    "build": "tsc -p tsconfig.json",
-    "start": "electron dist/main.js"
+    "build": "tsc -p tsconfig.json && node scripts/prepare-bundle.mjs",
+    "start": "electron dist/main.js",
+    "package:linux": "npm run build && electron-builder --linux AppImage --publish never",
+    "package:linux:deb": "npm run build && electron-builder --linux deb --publish never"
   },
   "dependencies": {
-    "electron": "^31.3.1"
+    "@prisma/client": "^5.18.0",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
+    "electron": "31.3.1",
     "typescript": "^5.6.3",
     "tsx": "^4.19.0",
-    "@types/node": "^20.17.0"
+    "@types/node": "^20.17.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.tailored.desktop",
+    "electronVersion": "31.3.1",
+    "productName": "Tailored",
+    "directories": {
+      "output": "../../dist/desktop"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json",
+      "node_modules/.prisma/**/*"
+    ],
+    "asarUnpack": [
+      "node_modules/.prisma/**/*",
+      "**/*.node"
+    ],
+    "extraResources": [
+      {
+        "from": "../../node_modules/.prisma",
+        "to": "node_modules/.prisma",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "linux": {
+      "maintainer": "Tailored <maintainer@example.com>",
+      "category": "Utility",
+      "target": [
+        "AppImage"
+      ]
+    }
   }
 }

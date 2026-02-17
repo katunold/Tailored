@@ -1,5 +1,5 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Injectable, inject } from '@angular/core';
+import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { resolveApiBase } from '../../core/api-base';
 
@@ -20,7 +20,8 @@ export interface CreateClientPayload {
 
 @Injectable({ providedIn: 'root' })
 export class ClientsService {
-  private readonly http = inject(HttpClient);
+  constructor(private readonly http: HttpClient) {}
+
   private readonly clientsUrl = `${resolveApiBase()}/api/clients`;
 
   getClients(query = ''): Observable<ClientDto[]> {
