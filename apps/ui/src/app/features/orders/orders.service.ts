@@ -2,6 +2,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, map } from 'rxjs';
 import { OrderStatus } from '../../shared/status/status.types';
+import { resolveApiBase } from '../../core/api-base';
 
 interface ApiOrderItem {
   id: number;
@@ -106,8 +107,8 @@ export interface OrderDetails {
 @Injectable({ providedIn: 'root' })
 export class OrdersService {
   private readonly http = inject(HttpClient);
-  private readonly ordersUrl = 'http://127.0.0.1:3030/api/orders';
-  private readonly itemTypesUrl = 'http://127.0.0.1:3030/api/item-types';
+  private readonly ordersUrl = `${resolveApiBase()}/api/orders`;
+  private readonly itemTypesUrl = `${resolveApiBase()}/api/item-types`;
 
   getOrdersByClient(clientId: number): Observable<ClientOrderRow[]> {
     const params = new HttpParams().set('clientId', String(clientId));

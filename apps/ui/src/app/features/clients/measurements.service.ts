@@ -1,6 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
+import { resolveApiBase } from '../../core/api-base';
 
 export interface MeasurementFieldDto {
   key: string;
@@ -20,7 +21,7 @@ export interface MeasurementProfileDto {
 @Injectable({ providedIn: 'root' })
 export class MeasurementsService {
   private readonly http = inject(HttpClient);
-  private readonly measurementsUrl = 'http://127.0.0.1:3030/api/measurements';
+  private readonly measurementsUrl = `${resolveApiBase()}/api/measurements`;
 
   getMeasurementFields(): Observable<MeasurementFieldDto[]> {
     return this.http.get<MeasurementFieldDto[]>(`${this.measurementsUrl}/fields`);
