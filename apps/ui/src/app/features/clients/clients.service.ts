@@ -1,6 +1,7 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
+import { resolveApiBase } from '../../core/api-base';
 
 export interface ClientDto {
   id: number;
@@ -20,7 +21,7 @@ export interface CreateClientPayload {
 @Injectable({ providedIn: 'root' })
 export class ClientsService {
   private readonly http = inject(HttpClient);
-  private readonly clientsUrl = 'http://127.0.0.1:3030/api/clients';
+  private readonly clientsUrl = `${resolveApiBase()}/api/clients`;
 
   getClients(query = ''): Observable<ClientDto[]> {
     const trimmed = query.trim();

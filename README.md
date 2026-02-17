@@ -3,12 +3,18 @@
 ## Dev
 
 - `npm install`
-- `npm run dev`
+- `npm run desktop:dev`
 
 This starts:
 - API (Express)
 - UI (Angular)
 - Electron desktop app
+
+## Desktop Build + Run
+
+- `npm run start:desktop`
+
+This builds API, UI, and Electron main process, then starts the desktop shell.
 
 ### Environment
 
