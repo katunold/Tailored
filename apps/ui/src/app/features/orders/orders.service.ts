@@ -211,14 +211,14 @@ export class OrdersService {
 
   private toUiStatus(status: string): OrderStatus {
     const map: Record<string, OrderStatus> = {
-      PLACED: 'New',
-      PROCESSING: 'In Progress',
-      PAUSED: 'Fitting',
-      COMPLETED: 'Delivered',
-      CANCELED: 'Cancelled'
+      PLACED: 'Placed',
+      PROCESSING: 'Processing',
+      PAUSED: 'Paused',
+      COMPLETED: 'Completed',
+      CANCELED: 'Canceled'
     };
 
-    return map[status] ?? 'New';
+    return map[status] ?? 'Placed';
   }
 
   private toBackendStatus(status: string): BackendOrderStatus {

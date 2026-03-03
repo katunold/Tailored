@@ -9,6 +9,8 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { catchError, finalize, of } from 'rxjs';
 import { PageHeaderComponent } from '../../../shared/page-header/page-header.component';
+import { PhoneInputDirective } from '../../../shared/directives/phone-input.directive';
+import { phoneValidator } from '../../../shared/validators/phone.validator';
 import { ClientsService } from '../clients.service';
 import { MeasurementFieldDto, MeasurementsService } from '../measurements.service';
 
@@ -22,7 +24,8 @@ import { MeasurementFieldDto, MeasurementsService } from '../measurements.servic
     MatInputModule,
     MatProgressSpinnerModule,
     MatSnackBarModule,
-    PageHeaderComponent
+    PageHeaderComponent,
+    PhoneInputDirective
   ],
   templateUrl: './client-create.component.html',
   styleUrl: './client-create.component.scss'
@@ -41,7 +44,7 @@ export class ClientCreateComponent implements OnInit {
 
   protected readonly clientForm = this.fb.group({
     fullName: ['', Validators.required],
-    phone: ['', Validators.required],
+    phone: ['', [Validators.required, phoneValidator]],
     notes: ['']
   });
 

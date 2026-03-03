@@ -55,40 +55,47 @@
 
         @if (scopedClientId === null) {
           <section class="new-client-section">
-            @if (!showNewClientForm) {
-              <button mat-stroked-button type="button" (click)="openNewClientForm()">Add New Client</button>
-            } @else {
-              <form [formGroup]="newClientForm" class="step-grid">
-                <mat-form-field appearance="outline">
-                  <mat-label>New Client Name</mat-label>
-                  <input matInput formControlName="fullName" />
-                </mat-form-field>
+            @if (!hasSelectedClient()) {
+              @if (!showNewClientForm) {
+                <button mat-stroked-button type="button" (click)="openNewClientForm()">Add New Client</button>
+              } @else {
+                <form [formGroup]="newClientForm" class="step-grid">
+                  <mat-form-field appearance="outline">
+                    <mat-label>New Client Name</mat-label>
+                    <input matInput formControlName="fullName" />
+                  </mat-form-field>
 
-                <mat-form-field appearance="outline">
-                  <mat-label>New Client Phone</mat-label>
-                  <input matInput formControlName="phone" />
-                </mat-form-field>
+                  <mat-form-field appearance="outline">
+                    <mat-label>New Client Phone</mat-label>
+                    <input matInput appPhoneInput type="tel" inputmode="tel" autocomplete="tel" formControlName="phone" />
+                    @if (newClientForm.controls.phone.hasError('required')) {
+                      <mat-error>Phone is required.</mat-error>
+                    } @else if (newClientForm.controls.phone.hasError('phone')) {
+                      <mat-error>Enter a valid phone number.</mat-error>
+                    }
+                  </mat-form-field>
 
-                <mat-form-field appearance="outline" class="span-all">
-                  <mat-label>Notes</mat-label>
-                  <textarea matInput rows="2" formControlName="notes"></textarea>
-                </mat-form-field>
-              </form>
+                  <mat-form-field appearance="outline" class="span-all">
+                    <mat-label>Notes</mat-label>
+                    <textarea matInput rows="2" formControlName="notes"></textarea>
+                  </mat-form-field>
+                </form>
 
-              <div class="new-client-actions">
-                <button mat-button type="button" (click)="cancelNewClientForm()" [disabled]="isCreatingClient">
-                  Cancel
-                </button>
-                <button
-                  mat-flat-button
-                  color="primary"
-                  type="button"
-                  (click)="addNewClientToOrder()"
-                  [disabled]="isCreatingClient"
-                >
-                  Add Client
-                </button>
-              </div>
+                <div class="new-client-actions">
+                  <button mat-button type="button" (click)="cancelNewClientForm()" [disabled]="isCreatingClient">
+                    Cancel
+                  </button>
+                  <button
+                    mat-flat-button
+                    color="primary"
+                    type="button"
+                    (click)="addNewClientToOrder()"
+                    [disabled]="isCreatingClient || newClientForm.invalid"
+                  >
+                    Add Client
+                  </button>
+                </div>
+              }
             }
           </section>
         }

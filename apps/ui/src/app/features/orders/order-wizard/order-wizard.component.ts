@@ -16,6 +16,8 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatStepper, MatStepperModule } from '@angular/material/stepper';
 import { catchError, finalize, of } from 'rxjs';
 import { PageHeaderComponent } from '../../../shared/page-header/page-header.component';
+import { PhoneInputDirective } from '../../../shared/directives/phone-input.directive';
+import { phoneValidator } from '../../../shared/validators/phone.validator';
 import { MeasurementsService } from '../../clients/measurements.service';
 import { ClientsService } from '../../clients/clients.service';
 import {
@@ -41,7 +43,8 @@ import {
     MatSnackBarModule,
     MatStepperModule,
     DatePipe,
-    PageHeaderComponent
+    PageHeaderComponent,
+    PhoneInputDirective
   ],
   templateUrl: './order-wizard.component.html',
   styleUrl: './order-wizard.component.scss'
@@ -75,6 +78,7 @@ export class OrderWizardComponent implements OnInit {
   protected selectedItemTypeName = '';
   protected selectedTemplateFields: OrderItemTemplateField[] = [];
   protected clientProfileMeasurements: Record<string, number> = {};
+  protected carriedMeasurements: Record<string, number> = {};
   protected addedItems: CreateOrderPayload['items'] = [];
 
   protected readonly clientForm = this.fb.group({
@@ -84,7 +88,7 @@ export class OrderWizardComponent implements OnInit {
   });
   protected readonly newClientForm = this.fb.group({
     fullName: ['', Validators.required],
-    phone: ['', Validators.required],
+    phone: ['', [Validators.required, phoneValidator]],
     notes: ['']
   });
 
@@ -131,6 +135,7 @@ export class OrderWizardComponent implements OnInit {
           { emitEvent: false }
         );
         this.clientProfileMeasurements = {};
+        this.carriedMeasurements = {};
         this.applyProfileValuesToMeasurementForm();
         return;
       }
@@ -149,6 +154,7 @@ export class OrderWizardComponent implements OnInit {
       );
       this.clientSearchTerm = '';
       this.filterClients('');
+      this.carriedMeasurements = {};
       this.loadClientProfile(selectedClient.id);
     });
 
@@ -245,13 +251,16 @@ export class OrderWizardComponent implements OnInit {
       return;
     }
 
-    this.addedItems = [...this.addedItems, this.buildOrderItemPayload()];
+    const itemPayload = this.buildOrderItemPayload();
+    this.addedItems = [...this.addedItems, itemPayload];
+    this.captureCarriedMeasurements(itemPayload);
     this.snackBar.open('Item added to order. Configure the next item.', 'Close', { duration: 2000 });
     this.prepareForNextItem();
   }
 
   protected removeAddedItem(index: number): void {
     this.addedItems = this.addedItems.filter((_, i) => i !== index);
+    this.rebuildCarriedMeasurements();
   }
 
   protected totalItemsInOrder(): number {
@@ -440,6 +449,7 @@ export class OrderWizardComponent implements OnInit {
       { emitEvent: false }
     );
     this.clientProfileMeasurements = {};
+    this.carriedMeasurements = {};
     this.applyProfileValuesToMeasurementForm();
   }
 
@@ -530,11 +540,12 @@ export class OrderWizardComponent implements OnInit {
       )
       .subscribe((fields) => {
         this.selectedTemplateFields = fields.filter((field) => field.type === 'number');
+        const useCurrent = this.measurementModeForm.value.useCurrentMeasurements ?? true;
+        const sourceValues = useCurrent ? this.currentMeasurementSourceValues() : {};
 
         for (const field of this.selectedTemplateFields) {
-          const profileValue =
-            field.key in this.clientProfileMeasurements ? this.clientProfileMeasurements[field.key] : null;
-          this.measurementForm.addControl(field.key, this.fb.control<number | null>(profileValue));
+          const value = field.key in sourceValues ? sourceValues[field.key] : null;
+          this.measurementForm.addControl(field.key, this.fb.control<number | null>(value));
         }
       });
   }
@@ -657,14 +668,48 @@ export class OrderWizardComponent implements OnInit {
       return;
     }
 
+    const sourceValues = this.currentMeasurementSourceValues();
     const patch: Record<string, number | null> = {};
 
     for (const field of this.selectedTemplateFields) {
       patch[field.key] =
-        field.key in this.clientProfileMeasurements ? this.clientProfileMeasurements[field.key] : null;
+        field.key in sourceValues ? sourceValues[field.key] : null;
     }
 
     this.measurementForm.patchValue(patch);
+  }
+
+  private currentMeasurementSourceValues(): Record<string, number> {
+    return {
+      ...this.clientProfileMeasurements,
+      ...this.carriedMeasurements
+    };
+  }
+
+  private captureCarriedMeasurements(itemPayload: CreateOrderPayload['items'][number]): void {
+    const values = itemPayload.measurementsInput ?? {};
+    if (Object.keys(values).length === 0) {
+      return;
+    }
+
+    this.carriedMeasurements = {
+      ...this.carriedMeasurements,
+      ...values
+    };
+  }
+
+  private rebuildCarriedMeasurements(): void {
+    const rebuilt: Record<string, number> = {};
+
+    for (const item of this.addedItems) {
+      const values = item.measurementsInput ?? {};
+      if (Object.keys(values).length === 0) {
+        continue;
+      }
+      Object.assign(rebuilt, values);
+    }
+
+    this.carriedMeasurements = rebuilt;
   }
 
   private areRequiredMeasurementsSatisfied(): boolean {

@@ -98,6 +98,7 @@ export function ordersRouter(ctx: AppContext) {
     for (const item of dto.items) {
       const useCurrent = item.useCurrentMeasurements === true;
       const inputValues = item.measurementsInput ?? {};
+      const hasInputValues = Object.keys(inputValues).length > 0;
       const candidateValues = useCurrent
         ? { ...workingProfileValues, ...inputValues }
         : { ...inputValues };
@@ -116,7 +117,7 @@ export function ordersRouter(ctx: AppContext) {
         missingByItem.push({ itemTypeId: item.itemTypeId, missingFields });
       }
 
-      if (useCurrent && item.measurementsInput) {
+      if (hasInputValues) {
         workingProfileValues = candidateValues;
       }
     }
@@ -140,6 +141,7 @@ export function ordersRouter(ctx: AppContext) {
       });
 
       let profileValues: Record<string, number> = { ...baseProfileValues };
+      let hasProfileUpdates = false;
 
       // For each item, resolve measurements + snapshot + defaults
       for (const item of dto.items) {
@@ -149,21 +151,14 @@ export function ordersRouter(ctx: AppContext) {
         const material = cleanText(item.material) ?? d?.defaultMaterial ?? "Standard";
         const useCurrent = item.useCurrentMeasurements === true;
         const inputValues = item.measurementsInput ?? {};
+        const hasInputValues = Object.keys(inputValues).length > 0;
         const sourceValues = useCurrent
           ? { ...profileValues, ...inputValues }
           : { ...inputValues };
 
-        if (useCurrent && item.measurementsInput) {
+        if (hasInputValues) {
           profileValues = { ...profileValues, ...inputValues };
-
-          await tx.$executeRawUnsafe(
-            `INSERT INTO client_measurement_profiles (client_id, values_json, updated_at)
-             VALUES (?, ?, CURRENT_TIMESTAMP)
-             ON CONFLICT(client_id)
-             DO UPDATE SET values_json = excluded.values_json, updated_at = CURRENT_TIMESTAMP`,
-            dto.clientId,
-            JSON.stringify(profileValues)
-          );
+          hasProfileUpdates = true;
         }
 
         const templateFields = templateFieldsByType.get(item.itemTypeId) ?? [];
@@ -187,6 +182,17 @@ export function ordersRouter(ctx: AppContext) {
             notes: null,
           },
         });
+      }
+
+      if (hasProfileUpdates) {
+        await tx.$executeRawUnsafe(
+          `INSERT INTO client_measurement_profiles (client_id, values_json, updated_at)
+           VALUES (?, ?, CURRENT_TIMESTAMP)
+           ON CONFLICT(client_id)
+           DO UPDATE SET values_json = excluded.values_json, updated_at = CURRENT_TIMESTAMP`,
+          dto.clientId,
+          JSON.stringify(profileValues)
+        );
       }
 
       return order;
