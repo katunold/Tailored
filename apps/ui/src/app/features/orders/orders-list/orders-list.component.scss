@@ -22,16 +22,72 @@
 
 .filter-chip-btn {
   padding: 0 var(--space-1);
-  border-color: transparent;
+  border-color: var(--color-divider);
+  background: #fff;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease, transform 0.15s ease;
 }
 
 .filter-chip-btn.active {
-  border-color: var(--color-primary);
-  box-shadow: inset 0 0 0 1px var(--color-primary);
+  transform: translateY(-1px);
 }
 
 .filter-chip-btn app-status-chip {
   pointer-events: none;
+}
+
+.filter-chip-btn.status-filter-placed {
+  border-color: #c7d2fe;
+  background: #f5f7ff;
+}
+
+.filter-chip-btn.status-filter-processing {
+  border-color: #bae6fd;
+  background: #eff8ff;
+}
+
+.filter-chip-btn.status-filter-paused {
+  border-color: #a5f3fc;
+  background: #f0fdff;
+}
+
+.filter-chip-btn.status-filter-completed {
+  border-color: #bbf7d0;
+  background: #f0fff4;
+}
+
+.filter-chip-btn.status-filter-canceled {
+  border-color: #fecaca;
+  background: #fff5f5;
+}
+
+.filter-chip-btn.status-filter-placed.active {
+  border-color: #6366f1;
+  box-shadow: inset 0 0 0 1px #6366f1;
+  background: #eef2ff;
+}
+
+.filter-chip-btn.status-filter-processing.active {
+  border-color: #0284c7;
+  box-shadow: inset 0 0 0 1px #0284c7;
+  background: #e0f2fe;
+}
+
+.filter-chip-btn.status-filter-paused.active {
+  border-color: #0d9488;
+  box-shadow: inset 0 0 0 1px #0d9488;
+  background: #ccfbf1;
+}
+
+.filter-chip-btn.status-filter-completed.active {
+  border-color: #16a34a;
+  box-shadow: inset 0 0 0 1px #16a34a;
+  background: #dcfce7;
+}
+
+.filter-chip-btn.status-filter-canceled.active {
+  border-color: #dc2626;
+  box-shadow: inset 0 0 0 1px #dc2626;
+  background: #fee2e2;
 }
 
 .loading-state {

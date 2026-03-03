@@ -11,3 +11,28 @@
 .status-paused { background: #ecfeff; color: #115e59; }
 .status-completed { background: #f0fdf4; color: #166534; }
 .status-canceled { background: #fef2f2; color: #991b1b; }
+
+.status-chip-table {
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.status-chip-table.status-placed {
+  border-color: #c7d2fe;
+}
+
+.status-chip-table.status-processing {
+  border-color: #7dd3fc;
+}
+
+.status-chip-table.status-paused {
+  border-color: #5eead4;
+}
+
+.status-chip-table.status-completed {
+  border-color: #86efac;
+}
+
+.status-chip-table.status-canceled {
+  border-color: #fca5a5;
+}

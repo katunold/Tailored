@@ -11,4 +11,5 @@ import { OrderStatus } from '../status/status.types';
 })
 export class StatusChipComponent {
   readonly status = input<OrderStatus>('Placed');
+  readonly variant = input<'default' | 'table'>('default');
 }
