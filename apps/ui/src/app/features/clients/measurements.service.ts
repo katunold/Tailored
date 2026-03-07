@@ -18,7 +18,7 @@ export interface MeasurementProductProfileDto {
   fields: MeasurementFieldDto[];
   valuesJson: string;
   updatedAt: string;
-  values: Record<string, number>;
+  values: Record<string, number | string>;
 }
 
 export interface MeasurementProfileDto {
@@ -30,7 +30,7 @@ export interface MeasurementProfileDto {
     measurementId: number | null;
     valuesJson: string | null;
     updatedAt: string | null;
-    values: Record<string, number>;
+    values: Record<string, number | string>;
   }>;
 }
 
@@ -66,7 +66,7 @@ export class MeasurementsService {
   upsertMeasurementProfile(
     clientId: number | string,
     itemTypeId: number,
-    values: Record<string, number>
+    values: Record<string, number | string>
   ): Observable<MeasurementProductProfileDto> {
     return this.http.put<MeasurementProductProfileDto>(`${this.measurementsUrl}/profile/${clientId}/${itemTypeId}`, {
       values

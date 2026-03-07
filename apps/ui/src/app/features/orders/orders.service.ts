@@ -10,6 +10,7 @@ interface ApiOrderItem {
   quantity: number;
   color: string;
   material: string;
+  notes?: string | null;
   measurementSnapshot?: Record<string, number>;
   itemType?: {
     name: string;
@@ -78,6 +79,8 @@ export interface CreateOrderPayload {
     quantity: number;
     color?: string;
     material?: string;
+    itemNotes?: string | null;
+    otherProductName?: string | null;
     useCurrentMeasurements?: boolean;
     measurementsInput?: Record<string, number>;
   }>;
@@ -100,6 +103,7 @@ export interface OrderDetails {
     quantity: number;
     color: string;
     material: string;
+    notes: string | null;
     measurements: Record<string, number>;
   }>;
 }
@@ -188,6 +192,7 @@ export class OrdersService {
           quantity: item.quantity ?? 1,
           color: item.color ?? 'Default',
           material: item.material ?? 'Standard',
+          notes: item.notes ?? null,
           measurements: item.measurementSnapshot ?? {}
         }))
       }))

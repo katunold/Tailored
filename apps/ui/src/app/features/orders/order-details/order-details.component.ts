@@ -56,7 +56,7 @@ export class OrderDetailsComponent implements OnInit {
   protected isUpdatingStatus = false;
   protected orderId: number | null = null;
   protected order: OrderDetails | null = null;
-  protected readonly displayedColumns = ['itemName', 'quantity', 'color', 'material', 'measurements'];
+  protected readonly displayedColumns = ['itemName', 'quantity', 'color', 'material', 'measurements', 'itemNotes'];
   private readonly templateKeysByItemTypeId = new Map<number, string[]>();
   private isPatchingStatus = false;
 

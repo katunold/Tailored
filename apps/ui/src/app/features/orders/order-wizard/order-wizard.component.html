@@ -134,6 +134,23 @@
             <input matInput formControlName="material" />
           </mat-form-field>
 
+          @if (isOthersSelected()) {
+            <mat-form-field appearance="outline" class="span-all">
+              <mat-label>Product Name</mat-label>
+              <input matInput formControlName="otherProductName" />
+              @if (orderForm.controls.otherProductName.hasError('required')) {
+                <mat-error>Product name is required for Others.</mat-error>
+              } @else if (orderForm.controls.otherProductName.hasError('productExists')) {
+                <mat-error>Product exists and not under others.</mat-error>
+              }
+            </mat-form-field>
+          }
+
+          <mat-form-field appearance="outline" class="span-all">
+            <mat-label>{{ isOthersSelected() ? 'Notes for Others (Optional)' : 'Item Notes (Optional)' }}</mat-label>
+            <textarea matInput rows="2" formControlName="itemNotes"></textarea>
+          </mat-form-field>
+
           <mat-form-field appearance="outline">
             <mat-label>Delivery Date</mat-label>
             <input matInput [matDatepicker]="deliveryPicker" formControlName="dueDate" />
@@ -185,6 +202,9 @@
         <div><strong>Client Phone:</strong> {{ summaryClientPhone() }}</div>
         <div><strong>Total Items:</strong> {{ totalItemsInOrder() }}</div>
         <div><strong>Item Type:</strong> {{ selectedItemTypeName || 'N/A' }}</div>
+        @if (isOthersSelected()) {
+          <div><strong>Product Name:</strong> {{ orderForm.value.otherProductName || 'N/A' }}</div>
+        }
         <div><strong>Quantity:</strong> {{ orderForm.value.quantity }}</div>
         <div><strong>Color:</strong> {{ orderForm.value.color || 'Default' }}</div>
         <div><strong>Material:</strong> {{ orderForm.value.material || 'Standard' }}</div>
@@ -199,6 +219,9 @@
           } @else {
             Manual input ({{ selectedTemplateFields.length }} possible fields)
           }
+        </div>
+        <div class="span-all">
+          <strong>Item Notes:</strong> {{ orderForm.value.itemNotes || 'None' }}
         </div>
         <div class="span-all">
           <strong>Notes:</strong> {{ orderForm.value.notes || 'None' }}
@@ -216,6 +239,12 @@
                   Qty {{ item.quantity }} | {{ item.color || 'Default' }} | {{ item.material || 'Standard' }} |
                   {{ itemMeasurementMode(item) }}
                 </p>
+                @if (item.otherProductName) {
+                  <p class="queued-item-meta">Product name: {{ item.otherProductName }}</p>
+                }
+                @if (item.itemNotes) {
+                  <p class="queued-item-meta">Item note: {{ item.itemNotes }}</p>
+                }
               </div>
               <button mat-stroked-button color="warn" type="button" (click)="removeAddedItem($index)">Remove</button>
             </div>
@@ -226,7 +255,11 @@
       <section class="current-item">
         <h3>Current Item (Not Yet Added)</h3>
         <p>
-          <strong>{{ selectedItemTypeName || 'N/A' }}</strong> |
+          <strong>{{ selectedItemTypeName || 'N/A' }}</strong>
+          @if (orderForm.value.otherProductName) {
+            ({{ orderForm.value.otherProductName }})
+          }
+          |
           Qty {{ orderForm.value.quantity }} |
           {{ orderForm.value.color || 'Default' }} |
           {{ orderForm.value.material || 'Standard' }} |
@@ -234,6 +267,9 @@
             Current profile measurements
           } @else {
             Manual measurements
+          }
+          @if (orderForm.value.itemNotes) {
+            | Note: {{ orderForm.value.itemNotes }}
           }
         </p>
       </section>
