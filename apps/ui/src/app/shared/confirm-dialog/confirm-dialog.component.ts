@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, InjectionToken } from '@angular/core';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 
@@ -15,7 +15,9 @@ export interface ConfirmDialogData {
   templateUrl: './confirm-dialog.component.html'
 })
 export class ConfirmDialogComponent {
-  readonly data = inject<ConfirmDialogData>(MAT_DIALOG_DATA);
+  readonly data = inject(
+    MAT_DIALOG_DATA as unknown as InjectionToken<ConfirmDialogData>
+  );
   private readonly dialogRef = inject(MatDialogRef<ConfirmDialogComponent>);
 
   cancel(): void {

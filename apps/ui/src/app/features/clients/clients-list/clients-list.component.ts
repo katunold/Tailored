@@ -1,4 +1,4 @@
-import { ChangeDetectorRef, Component, ViewChild, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, ViewChild } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -66,14 +66,14 @@ export class ClientsListComponent {
   protected isLoading = true;
   protected searchQuery = '';
 
-  private readonly snackBar = inject(MatSnackBar);
-  private readonly clientsService = inject(ClientsService);
-  private readonly router = inject(Router);
-  private readonly cdr = inject(ChangeDetectorRef);
-
   protected readonly dataSource = new MatTableDataSource<ClientRow>([]);
 
-  constructor() {
+  constructor(
+    private readonly snackBar: MatSnackBar,
+    private readonly clientsService: ClientsService,
+    private readonly router: Router,
+    private readonly cdr: ChangeDetectorRef
+  ) {
     this.dataSource.filterPredicate = (row, filter) => {
       const q = filter.trim().toLowerCase();
       return !q || `${row.id} ${row.fullName} ${row.phone} ${row.createdOn}`.toLowerCase().includes(q);

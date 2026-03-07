@@ -1,3 +1,7 @@
-<mat-chip class="status-chip" [ngClass]="'status-' + status().toLowerCase().replace(' ', '-')">
+<mat-chip
+  class="status-chip"
+  [class.status-chip-table]="variant() === 'table'"
+  [ngClass]="'status-' + status().toLowerCase().replace(' ', '-')"
+>
   {{ status() }}
 </mat-chip>

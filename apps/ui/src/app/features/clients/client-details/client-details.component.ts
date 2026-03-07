@@ -15,8 +15,10 @@ import { catchError, finalize, forkJoin, of } from 'rxjs';
 import { PageHeaderComponent } from '../../../shared/page-header/page-header.component';
 import { EmptyStateComponent } from '../../../shared/empty-state/empty-state.component';
 import { ConfirmDialogComponent } from '../../../shared/confirm-dialog/confirm-dialog.component';
+import { PhoneInputDirective } from '../../../shared/directives/phone-input.directive';
 import { StatusChipComponent } from '../../../shared/status-chip/status-chip.component';
 import { OrderStatus } from '../../../shared/status/status.types';
+import { phoneValidator } from '../../../shared/validators/phone.validator';
 import { OrdersService, ClientOrderRow } from '../../orders/orders.service';
 import { ClientDto, ClientsService } from '../clients.service';
 import { MeasurementFieldDto, MeasurementsService } from '../measurements.service';
@@ -37,7 +39,8 @@ import { MeasurementFieldDto, MeasurementsService } from '../measurements.servic
     DatePipe,
     PageHeaderComponent,
     EmptyStateComponent,
-    StatusChipComponent
+    StatusChipComponent,
+    PhoneInputDirective
   ],
   templateUrl: './client-details.component.html',
   styleUrl: './client-details.component.scss'
@@ -67,7 +70,7 @@ export class ClientDetailsComponent implements OnInit {
 
   protected readonly profileForm = this.fb.group({
     fullName: ['', Validators.required],
-    phone: ['', Validators.required],
+    phone: ['', [Validators.required, phoneValidator]],
     notes: ['']
   });
 
@@ -240,6 +243,7 @@ export class ClientDetailsComponent implements OnInit {
 
         this.measurementForm.markAsPristine();
         this.measurementForm.markAsUntouched();
+        this.cdr.detectChanges();
       });
   }
 

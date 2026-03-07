@@ -1,10 +1,17 @@
 import { z } from "zod";
 
+const PhoneSchema = z
+  .string()
+  .trim()
+  .refine((value) => /^\+?[0-9]{7,15}$/.test(value), {
+    message: "Phone must be 7 to 15 digits, with optional leading +",
+  });
+
 export const OrderStatusSchema = z.enum(["PLACED", "PROCESSING", "PAUSED", "COMPLETED", "CANCELED"]);
 
 export const CreateClientSchema = z.object({
   fullName: z.string().min(2),
-  phone: z.string().min(5),
+  phone: PhoneSchema,
   notes: z.string().optional().nullable(),
 });
 

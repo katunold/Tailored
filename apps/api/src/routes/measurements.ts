@@ -9,6 +9,17 @@ type ProfileRow = {
   updated_at: Date | string;
 };
 
+const DEFAULT_MEASUREMENT_FIELDS = [
+  { key: "neck", label: "Neck", type: "number", required: false },
+  { key: "cabba", label: "Cabba", type: "number", required: false },
+  { key: "sleeves", label: "Sleeves", type: "number", required: false },
+  { key: "length", label: "Length", type: "number", required: false },
+  { key: "bust", label: "Bust", type: "number", required: false },
+  { key: "waist", label: "Waist", type: "number", required: false },
+  { key: "shoulders", label: "Shoulders", type: "number", required: false },
+  { key: "width", label: "Width", type: "number", required: false },
+] as const;
+
 export function measurementsRouter(ctx: AppContext) {
   const route = Router();
   const parseId = (value: string): number | null => {
@@ -102,6 +113,12 @@ export function measurementsRouter(ctx: AppContext) {
             required: false,
           });
         }
+      }
+    }
+
+    if (byKey.size === 0) {
+      for (const field of DEFAULT_MEASUREMENT_FIELDS) {
+        byKey.set(field.key, { ...field });
       }
     }
 

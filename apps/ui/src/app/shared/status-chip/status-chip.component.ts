@@ -10,5 +10,6 @@ import { OrderStatus } from '../status/status.types';
   styleUrl: './status-chip.component.scss'
 })
 export class StatusChipComponent {
-  readonly status = input<OrderStatus>('New');
+  readonly status = input<OrderStatus>('Placed');
+  readonly variant = input<'default' | 'table'>('default');
 }

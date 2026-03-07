@@ -38,7 +38,12 @@
 
             <mat-form-field appearance="outline">
               <mat-label>Phone</mat-label>
-              <input matInput formControlName="phone" />
+              <input matInput appPhoneInput type="tel" inputmode="tel" autocomplete="tel" formControlName="phone" />
+              @if (profileForm.controls.phone.hasError('required')) {
+                <mat-error>Phone is required.</mat-error>
+              } @else if (profileForm.controls.phone.hasError('phone')) {
+                <mat-error>Enter a valid phone number.</mat-error>
+              }
             </mat-form-field>
 
             <mat-form-field appearance="outline" class="span-all">
@@ -62,14 +67,18 @@
             </section>
           } @else {
             <p class="measurement-hint">All fields are optional.</p>
-            <form [formGroup]="measurementForm" class="grid">
-              @for (field of measurementFields; track field.key) {
-                <mat-form-field appearance="outline">
-                  <mat-label>{{ field.label }}</mat-label>
-                  <input matInput type="number" [formControlName]="field.key" />
-                </mat-form-field>
-              }
-            </form>
+            @if (measurementFields.length === 0) {
+              <p class="measurement-hint">No measurement fields are configured yet.</p>
+            } @else {
+              <form [formGroup]="measurementForm" class="grid">
+                @for (field of measurementFields; track field.key) {
+                  <mat-form-field appearance="outline">
+                    <mat-label>{{ field.label }}</mat-label>
+                    <input matInput type="number" [formControlName]="field.key" />
+                  </mat-form-field>
+                }
+              </form>
+            }
           }
 
           <div class="tab-actions">
