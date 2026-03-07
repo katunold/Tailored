@@ -43,11 +43,13 @@ const templates: Record<string, Field[]> = {
   Chasuble: [
     { key: 'neck', label: 'Neck', type: 'number', required: true },
     { key: 'cabba', label: 'Cabba', type: 'number', required: true },
+    { key: 'sleeves', label: 'Sleeves', type: 'number', required: false },
     { key: 'length', label: 'Length', type: 'number', required: true },
   ],
   Dalmatic: [
     { key: 'neck', label: 'Neck', type: 'number', required: true },
     { key: 'cabba', label: 'Cabba', type: 'number', required: true },
+    { key: 'sleeves', label: 'Sleeves', type: 'number', required: false },
     { key: 'length', label: 'Length', type: 'number', required: true },
   ],
   'Clerical Shirt': [
@@ -78,8 +80,54 @@ const templates: Record<string, Field[]> = {
     { key: 'shoulders', label: 'Shoulders', type: 'number', required: true },
   ],
   Cassock: [
+    { key: 'neck', label: 'Neck', type: 'number', required: true },
+    { key: 'cabba', label: 'Cabba', type: 'number', required: true },
+    { key: 'sleeves', label: 'Sleeves', type: 'number', required: true },
+    { key: 'shoulders', label: 'Shoulders', type: 'number', required: true },
+    { key: 'waist', label: 'Waist', type: 'number', required: true },
+    { key: 'bust', label: 'Bust', type: 'number', required: true },
+    { key: 'length', label: 'Length', type: 'number', required: true },
+    { key: 'kakooti', label: 'Kakooti', type: 'number', required: true },
+  ],
+  Mappa: [
     { key: 'length', label: 'Length', type: 'number', required: true },
     { key: 'width', label: 'Width', type: 'number', required: true },
+  ],
+  Cope: [
+    { key: 'cabba', label: 'Cabba', type: 'number', required: true },
+    { key: 'neck', label: 'Neck', type: 'number', required: true },
+    { key: 'bust', label: 'Bust', type: 'number', required: true },
+    { key: 'length', label: 'Length', type: 'number', required: true },
+  ],
+  'Altar servers vestments': [
+    { key: 'neck', label: 'Neck', type: 'number', required: true },
+    { key: 'cabba', label: 'Cabba', type: 'number', required: true },
+    { key: 'sleeves', label: 'Sleeves', type: 'number', required: true },
+    { key: 'length', label: 'Length', type: 'number', required: true },
+    { key: 'bust', label: 'Bust', type: 'number', required: true },
+  ],
+  "Catechists' vestments": [
+    { key: 'neck', label: 'Neck', type: 'number', required: true },
+    { key: 'cabba', label: 'Cabba', type: 'number', required: true },
+    { key: 'sleeves', label: 'Sleeves', type: 'number', required: true },
+    { key: 'length', label: 'Length', type: 'number', required: true },
+    { key: 'bust', label: 'Bust', type: 'number', required: true },
+  ],
+  'Altar clothes': [
+    { key: 'notes', label: 'Notes', type: 'text', required: false },
+  ],
+  Amice: [
+    { key: 'notes', label: 'Notes', type: 'text', required: false },
+  ],
+  Stole: [
+    { key: 'notes', label: 'Notes', type: 'text', required: false },
+  ],
+  Cincture: [
+    { key: 'notes', label: 'Notes', type: 'text', required: false },
+  ],
+  Others: [
+    { key: 'productName', label: 'Product Name', type: 'text', required: true },
+    { key: 'notes', label: 'Notes', type: 'text', required: false },
   ],
 };
 
@@ -92,6 +140,15 @@ const itemTypes = [
   { name: 'Clerical T-Shirt', category: ItemCategory.CLERICAL, defaultColor: 'Black', defaultMaterial: 'Cotton' },
   { name: 'Dog Collar', category: ItemCategory.CLERICAL, defaultColor: 'White', defaultMaterial: 'Cotton' },
   { name: 'Cassock', category: ItemCategory.OTHER, defaultColor: 'Black', defaultMaterial: 'Polyester blend' },
+  { name: 'Mappa', category: ItemCategory.OTHER, defaultColor: 'White', defaultMaterial: 'Cotton' },
+  { name: 'Cope', category: ItemCategory.CHASUBLE_DALMATIC, defaultColor: 'White', defaultMaterial: 'Polyester blend' },
+  { name: 'Altar servers vestments', category: ItemCategory.ALB_SURPLICE, defaultColor: 'White', defaultMaterial: 'Cotton' },
+  { name: "Catechists' vestments", category: ItemCategory.ALB_SURPLICE, defaultColor: 'White', defaultMaterial: 'Cotton' },
+  { name: 'Altar clothes', category: ItemCategory.OTHER, defaultColor: 'White', defaultMaterial: 'Cotton' },
+  { name: 'Amice', category: ItemCategory.OTHER, defaultColor: 'White', defaultMaterial: 'Cotton' },
+  { name: 'Stole', category: ItemCategory.OTHER, defaultColor: 'White', defaultMaterial: 'Polyester blend' },
+  { name: 'Cincture', category: ItemCategory.OTHER, defaultColor: 'White', defaultMaterial: 'Cotton' },
+  { name: 'Others', category: ItemCategory.OTHER, defaultColor: 'Default', defaultMaterial: 'Standard' },
 ];
 
 const seedClients: SeedClient[] = [
@@ -108,6 +165,7 @@ const seedClients: SeedClient[] = [
       waist: 38,
       shoulders: 19,
       width: 22,
+      kakooti: 22,
     },
     orders: [
       {
@@ -144,6 +202,7 @@ const seedClients: SeedClient[] = [
       waist: 36,
       shoulders: 18,
       width: 21,
+      kakooti: 21,
     },
     orders: [
       {
@@ -179,6 +238,7 @@ const seedClients: SeedClient[] = [
       waist: 40,
       shoulders: 20,
       width: 23,
+      kakooti: 23,
     },
     orders: [
       {

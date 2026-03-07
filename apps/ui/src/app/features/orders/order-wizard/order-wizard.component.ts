@@ -1,6 +1,6 @@
 import { ChangeDetectorRef, Component, OnInit, ViewChild, inject } from '@angular/core';
 import { DatePipe } from '@angular/common';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, ValidatorFn, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { MatButtonModule } from '@angular/material/button';
@@ -97,6 +97,8 @@ export class OrderWizardComponent implements OnInit {
     quantity: [1, [Validators.required, Validators.min(1)]],
     color: [''],
     material: [''],
+    itemNotes: [''],
+    otherProductName: [''],
     dueDate: [null as Date | null, Validators.required],
     notes: ['']
   });
@@ -161,6 +163,7 @@ export class OrderWizardComponent implements OnInit {
     this.orderForm.controls.itemTypeId.valueChanges.subscribe((itemTypeId) => {
       if (!itemTypeId) {
         this.selectedItemTypeName = '';
+        this.configureOtherProductNameValidation();
         this.selectedTemplateFields = [];
         this.resetMeasurementForm();
         return;
@@ -168,6 +171,7 @@ export class OrderWizardComponent implements OnInit {
 
       const match = this.itemTypes.find((itemType) => itemType.id === itemTypeId);
       this.selectedItemTypeName = match?.name ?? '';
+      this.configureOtherProductNameValidation();
       this.loadTemplateFields(itemTypeId);
     });
 
@@ -229,7 +233,8 @@ export class OrderWizardComponent implements OnInit {
       .pipe(
         catchError((err: HttpErrorResponse) => {
           const missingMessage = this.toMissingMeasurementsMessage(err);
-          this.snackBar.open(missingMessage ?? 'Could not create order.', 'Close', { duration: 3500 });
+          const errorMessage = String((err.error as { error?: string } | null)?.error ?? '').trim();
+          this.snackBar.open((missingMessage ?? errorMessage) || 'Could not create order.', 'Close', { duration: 3500 });
           return of(null);
         }),
         finalize(() => {
@@ -350,6 +355,7 @@ export class OrderWizardComponent implements OnInit {
       )
       .subscribe((itemTypes) => {
         this.itemTypes = itemTypes;
+        this.configureOtherProductNameValidation();
       });
   }
 
@@ -600,6 +606,8 @@ export class OrderWizardComponent implements OnInit {
       quantity: 1,
       color: '',
       material: '',
+      itemNotes: '',
+      otherProductName: '',
       dueDate,
       notes
     });
@@ -660,7 +668,14 @@ export class OrderWizardComponent implements OnInit {
       .subscribe((profile) => {
         const valuesByItemType: Record<number, Record<string, number>> = {};
         for (const product of profile?.products ?? []) {
-          valuesByItemType[product.itemTypeId] = product.values ?? {};
+          const numericValues = Object.entries(product.values ?? {}).reduce<Record<string, number>>((acc, [key, value]) => {
+            const numeric = Number(value);
+            if (Number.isFinite(numeric)) {
+              acc[key] = numeric;
+            }
+            return acc;
+          }, {});
+          valuesByItemType[product.itemTypeId] = numericValues;
         }
         this.clientProfileMeasurementsByItemType = valuesByItemType;
         this.applyProfileValuesToMeasurementForm();
@@ -755,6 +770,8 @@ export class OrderWizardComponent implements OnInit {
     const quantity = Number(this.orderForm.value.quantity ?? 1);
     const color = this.orderForm.value.color?.trim() ?? '';
     const material = this.orderForm.value.material?.trim() ?? '';
+    const itemNotes = this.orderForm.value.itemNotes?.trim() || null;
+    const otherProductName = this.orderForm.value.otherProductName?.trim() || null;
 
     if (useCurrent) {
       const additions = this.toProfileFillInsInput();
@@ -765,6 +782,8 @@ export class OrderWizardComponent implements OnInit {
         quantity,
         color,
         material,
+        itemNotes,
+        otherProductName,
         useCurrentMeasurements: true,
         ...(hasAdditions ? { measurementsInput: additions } : {})
       };
@@ -775,8 +794,48 @@ export class OrderWizardComponent implements OnInit {
       quantity,
       color,
       material,
+      itemNotes,
+      otherProductName,
       useCurrentMeasurements: false,
       measurementsInput: this.toMeasurementInput()
+    };
+  }
+
+  protected isOthersSelected(): boolean {
+    const selectedItemTypeId = this.orderForm.value.itemTypeId ?? null;
+    if (!selectedItemTypeId) {
+      return false;
+    }
+
+    const selectedItemType = this.itemTypes.find((itemType) => itemType.id === selectedItemTypeId);
+    return selectedItemType?.name.trim().toLowerCase() === 'others';
+  }
+
+  private configureOtherProductNameValidation(): void {
+    const control = this.orderForm.controls.otherProductName;
+    if (!this.isOthersSelected()) {
+      control.clearValidators();
+      control.setValue('', { emitEvent: false });
+      control.updateValueAndValidity({ emitEvent: false });
+      return;
+    }
+
+    control.setValidators([Validators.required, this.otherProductNameExistsValidator()]);
+    control.updateValueAndValidity({ emitEvent: false });
+  }
+
+  private otherProductNameExistsValidator(): ValidatorFn {
+    return (control: AbstractControl): ValidationErrors | null => {
+      const raw = String(control.value ?? '').trim();
+      if (!raw) {
+        return null;
+      }
+
+      const exists = this.itemTypes.some(
+        (itemType) => itemType.name.trim().toLowerCase() === raw.toLowerCase()
+      );
+
+      return exists ? { productExists: true } : null;
     };
   }
 

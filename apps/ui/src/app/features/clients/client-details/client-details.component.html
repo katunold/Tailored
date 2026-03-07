@@ -84,9 +84,18 @@
               } @else {
                 <form [formGroup]="measurementForm" class="grid">
                   @for (field of selectedMeasurementProduct()?.fields ?? []; track field.key) {
-                    <mat-form-field appearance="outline">
+                    <mat-form-field appearance="outline" [class.span-all]="isTextMeasurementField(field)">
                       <mat-label>{{ field.label }}</mat-label>
-                      <input matInput type="number" [formControlName]="field.key" />
+                      @if (isTextMeasurementField(field)) {
+                        <textarea matInput rows="3" [formControlName]="field.key"></textarea>
+                      } @else {
+                        <input matInput type="number" [formControlName]="field.key" />
+                      }
+                      @if (measurementForm.get(field.key)?.hasError('required')) {
+                        <mat-error>{{ field.label }} is required.</mat-error>
+                      } @else if (measurementForm.get(field.key)?.hasError('productExists')) {
+                        <mat-error>Product exists and not under others.</mat-error>
+                      }
                     </mat-form-field>
                   }
                 </form>

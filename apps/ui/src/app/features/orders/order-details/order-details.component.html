@@ -82,6 +82,11 @@
             </td>
           </ng-container>
 
+          <ng-container matColumnDef="itemNotes">
+            <th mat-header-cell *matHeaderCellDef>Item Notes</th>
+            <td mat-cell *matCellDef="let row">{{ row.notes || 'None' }}</td>
+          </ng-container>
+
           <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
           <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
         </table>

@@ -1,6 +1,6 @@
 import { DatePipe } from '@angular/common';
 import { ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, ValidatorFn, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
@@ -78,7 +78,7 @@ export class ClientDetailsComponent implements OnInit {
   });
 
   protected readonly measurementForm = this.fb.group({});
-  private originalMeasurementValues: Record<string, number | null> = {};
+  private originalMeasurementValues: Record<string, number | string | null> = {};
 
   ngOnInit(): void {
     const id = Number(this.route.snapshot.paramMap.get('id'));
@@ -106,14 +106,27 @@ export class ClientDetailsComponent implements OnInit {
     if (!this.clientId || !selectedProduct) {
       return;
     }
+    if (this.measurementForm.invalid) {
+      this.measurementForm.markAllAsTouched();
+      return;
+    }
 
     this.isSavingMeasurements = true;
-    const values: Record<string, number> = {};
+    const values: Record<string, number | string> = {};
 
     for (const field of selectedProduct.fields) {
       const raw = this.measurementForm.get(field.key)?.value;
 
       if (raw === null || raw === undefined || raw === '') {
+        continue;
+      }
+
+      if (field.type === 'text') {
+        const textValue = String(raw).trim();
+        if (!textValue) {
+          continue;
+        }
+        values[field.key] = textValue;
         continue;
       }
 
@@ -181,11 +194,10 @@ export class ClientDetailsComponent implements OnInit {
 
     for (const field of fields) {
       const currentRaw = this.measurementForm.get(field.key)?.value;
-      const current =
-        currentRaw === null || currentRaw === undefined || currentRaw === '' ? null : Number(currentRaw);
+      const current = this.normalizeFieldValue(field.type, currentRaw);
 
       const originalRaw = this.originalMeasurementValues[field.key];
-      const original = originalRaw === null || originalRaw === undefined ? null : Number(originalRaw);
+      const original = this.normalizeFieldValue(field.type, originalRaw);
 
       if (current !== original) {
         return true;
@@ -261,50 +273,55 @@ export class ClientDetailsComponent implements OnInit {
     this.originalMeasurementValues = {};
     this.resetMeasurementForm();
 
-    this.measurementsService
-      .getMeasurementProfile(clientId)
+    forkJoin({
+      profile: this.measurementsService.getMeasurementProfile(clientId).pipe(catchError(() => of(null))),
+      itemTypes: this.ordersService.getItemTypes().pipe(catchError(() => of([])))
+    })
       .pipe(
-        switchMap((profile) => {
+        switchMap(({ profile, itemTypes }) => {
           const normalizedProducts = this.normalizeMeasurementProducts(profile);
-          if (normalizedProducts.length > 0) {
+          const profileByItemTypeId = new Map(
+            normalizedProducts.map((product) => [product.itemTypeId, product] as const)
+          );
+
+          if (itemTypes.length === 0) {
             return of(normalizedProducts);
           }
 
-          // Compatibility fallback for older API responses that don't return grouped products yet.
-          return this.ordersService.getItemTypes().pipe(
-            catchError(() => of([])),
-            switchMap((itemTypes) => {
-              if (itemTypes.length === 0) {
-                return of([] as MeasurementProfileDto['products']);
-              }
-
-              return forkJoin(
-                itemTypes.map((itemType) =>
-                  this.measurementsService.getMeasurementFields(itemType.id).pipe(
-                    map((fields) => ({
-                      itemTypeId: itemType.id,
-                      itemTypeName: itemType.name,
-                      fields: Array.isArray(fields) ? fields : [],
-                      measurementId: null,
-                      valuesJson: null,
-                      updatedAt: null,
-                      values: {}
-                    })),
-                    catchError(() =>
-                      of({
-                        itemTypeId: itemType.id,
-                        itemTypeName: itemType.name,
-                        fields: [],
-                        measurementId: null,
-                        valuesJson: null,
-                        updatedAt: null,
-                        values: {}
-                      })
-                    )
-                  )
-                )
-              );
-            })
+          return forkJoin(
+            itemTypes.map((itemType) =>
+              this.measurementsService.getMeasurementFields(itemType.id).pipe(
+                map((fields) => {
+                  const existing = profileByItemTypeId.get(itemType.id);
+                  return {
+                    itemTypeId: itemType.id,
+                    itemTypeName: itemType.name,
+                    fields:
+                      existing && Array.isArray(existing.fields) && existing.fields.length > 0
+                        ? existing.fields
+                        : Array.isArray(fields)
+                          ? fields
+                          : [],
+                    measurementId: existing?.measurementId ?? null,
+                    valuesJson: existing?.valuesJson ?? null,
+                    updatedAt: existing?.updatedAt ?? null,
+                    values: existing?.values ?? {}
+                  };
+                }),
+                catchError(() => {
+                  const existing = profileByItemTypeId.get(itemType.id);
+                  return of({
+                    itemTypeId: itemType.id,
+                    itemTypeName: itemType.name,
+                    fields: existing?.fields ?? [],
+                    measurementId: existing?.measurementId ?? null,
+                    valuesJson: existing?.valuesJson ?? null,
+                    updatedAt: existing?.updatedAt ?? null,
+                    values: existing?.values ?? {}
+                  });
+                })
+              )
+            )
           );
         }),
         catchError(() => {
@@ -343,10 +360,18 @@ export class ClientDetailsComponent implements OnInit {
 
     const fields = Array.isArray(product.fields) ? product.fields : [];
     const values = product.values ?? {};
+    const isOthersProduct = product.itemTypeName.trim().toLowerCase() === 'others';
 
     for (const field of fields) {
       const value = field.key in values ? values[field.key] : null;
-      this.measurementForm.addControl(field.key, this.fb.control(value));
+      const validators = field.required ? [Validators.required] : [];
+      if (isOthersProduct && field.key === 'productName') {
+        validators.push(this.otherProductNameExistsValidator(product.itemTypeId));
+      }
+      this.measurementForm.addControl(
+        field.key,
+        this.fb.control(value, validators)
+      );
       this.originalMeasurementValues[field.key] = value;
     }
 
@@ -382,7 +407,7 @@ export class ClientDetailsComponent implements OnInit {
   }
 
   private captureMeasurementSnapshot(): void {
-    const nextSnapshot: Record<string, number | null> = {};
+    const nextSnapshot: Record<string, number | string | null> = {};
     const selectedProduct = this.selectedMeasurementProduct();
     if (!selectedProduct) {
       this.originalMeasurementValues = nextSnapshot;
@@ -392,7 +417,7 @@ export class ClientDetailsComponent implements OnInit {
     const fields = Array.isArray(selectedProduct.fields) ? selectedProduct.fields : [];
     for (const field of fields) {
       const raw = this.measurementForm.get(field.key)?.value;
-      nextSnapshot[field.key] = raw === null || raw === undefined || raw === '' ? null : Number(raw);
+      nextSnapshot[field.key] = this.normalizeFieldValue(field.type, raw);
     }
 
     this.originalMeasurementValues = nextSnapshot;
@@ -417,5 +442,40 @@ export class ClientDetailsComponent implements OnInit {
         values: row.values ?? {}
       };
     });
+  }
+
+  protected isTextMeasurementField(field: { type: 'number' | 'text' }): boolean {
+    return field.type === 'text';
+  }
+
+  private otherProductNameExistsValidator(currentItemTypeId: number): ValidatorFn {
+    return (control: AbstractControl): ValidationErrors | null => {
+      const raw = String(control.value ?? '').trim().toLowerCase();
+      if (!raw) {
+        return null;
+      }
+
+      const exists = this.measurementProducts.some(
+        (product) => product.itemTypeId !== currentItemTypeId && product.itemTypeName.trim().toLowerCase() === raw
+      );
+      return exists ? { productExists: true } : null;
+    };
+  }
+
+  private normalizeFieldValue(
+    fieldType: 'number' | 'text',
+    raw: unknown
+  ): number | string | null {
+    if (raw === null || raw === undefined || raw === '') {
+      return null;
+    }
+
+    if (fieldType === 'text') {
+      const textValue = String(raw).trim();
+      return textValue.length > 0 ? textValue : null;
+    }
+
+    const numericValue = Number(raw);
+    return Number.isFinite(numericValue) ? numericValue : null;
   }
 }

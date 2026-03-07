@@ -56,7 +56,7 @@ function parseFieldsJson(fieldsJson: string): MeasurementField[] {
   return fields;
 }
 
-function parseValuesJson(valuesJson: string | null): Record<string, number> {
+function parseValuesJson(valuesJson: string | null): Record<string, number | string> {
   if (!valuesJson) return {};
 
   let parsed: unknown;
@@ -70,10 +70,17 @@ function parseValuesJson(valuesJson: string | null): Record<string, number> {
     return {};
   }
 
-  return Object.entries(parsed as Record<string, unknown>).reduce<Record<string, number>>((acc, [key, value]) => {
-    const numeric = Number(value);
-    if (Number.isFinite(numeric)) {
-      acc[key] = numeric;
+  return Object.entries(parsed as Record<string, unknown>).reduce<Record<string, number | string>>((acc, [key, value]) => {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      acc[key] = value;
+      return acc;
+    }
+
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (trimmed.length > 0) {
+        acc[key] = trimmed;
+      }
     }
     return acc;
   }, {});

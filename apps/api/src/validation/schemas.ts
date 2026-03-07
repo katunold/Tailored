@@ -18,9 +18,10 @@ export const CreateClientSchema = z.object({
 export const UpdateClientSchema = CreateClientSchema.partial();
 
 export const MeasurementValuesSchema = z.record(z.string(), z.number());
+export const ProfileMeasurementValuesSchema = z.record(z.string(), z.union([z.number(), z.string()]));
 
 export const UpsertCurrentMeasurementSchema = z.object({
-  values: MeasurementValuesSchema, // already converted to DB unit by UI OR backend converts
+  values: ProfileMeasurementValuesSchema,
 });
 
 export const CreateOrderItemSchema = z.object({
@@ -28,6 +29,8 @@ export const CreateOrderItemSchema = z.object({
   quantity: z.number().int().min(1).default(1),
   color: z.string().optional(),    // may be blank -> backend defaults
   material: z.string().optional(), // may be blank -> backend defaults
+  itemNotes: z.string().optional().nullable(),
+  otherProductName: z.string().optional().nullable(),
 
   useCurrentMeasurements: z.boolean().optional(),
   measurementsInput: MeasurementValuesSchema.optional(),

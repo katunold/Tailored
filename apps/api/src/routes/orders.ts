@@ -69,6 +69,41 @@ export function ordersRouter(ctx: AppContext) {
 
     // prefetch item type defaults (to default color/material per item type)
     const itemTypeIds = [...new Set(dto.items.map((i) => i.itemTypeId))];
+    const itemTypes = await ctx.prisma.itemType.findMany({
+      where: { id: { in: itemTypeIds } },
+      select: { id: true, name: true },
+    });
+    const itemTypeNameById = new Map<number, string>(itemTypes.map((itemType) => [itemType.id, itemType.name]));
+
+    if (itemTypes.length !== itemTypeIds.length) {
+      return res.status(400).json({ error: "One or more item types are invalid." });
+    }
+
+    const allItemTypeNames = await ctx.prisma.itemType.findMany({
+      where: { isActive: true },
+      select: { name: true },
+    });
+    const normalizedExistingNames = new Set(
+      allItemTypeNames.map((itemType) => itemType.name.trim().toLowerCase())
+    );
+
+    for (const item of dto.items) {
+      const itemTypeName = itemTypeNameById.get(item.itemTypeId) ?? "";
+      const isOthers = itemTypeName.trim().toLowerCase() === "others";
+      if (!isOthers) continue;
+
+      const otherProductName = cleanText(item.otherProductName);
+      if (!otherProductName) {
+        return res.status(400).json({ error: "Product name is required for Others." });
+      }
+
+      if (normalizedExistingNames.has(otherProductName.toLowerCase())) {
+        return res.status(400).json({
+          error: "Product exists and not under others.",
+        });
+      }
+    }
+
     const defaults = await ctx.prisma.itemTypeDefaults.findMany({
       where: { itemTypeId: { in: itemTypeIds } },
     });
@@ -159,6 +194,8 @@ export function ordersRouter(ctx: AppContext) {
       for (const item of dto.items) {
         const existingValues = updatedValuesByType.get(item.itemTypeId) ?? {};
         const d = defaultsByType.get(item.itemTypeId);
+        const itemTypeName = itemTypeNameById.get(item.itemTypeId) ?? "";
+        const isOthers = itemTypeName.trim().toLowerCase() === "others";
 
         const color = cleanText(item.color) ?? d?.defaultColor ?? "Default";
         const material = cleanText(item.material) ?? d?.defaultMaterial ?? "Standard";
@@ -182,6 +219,13 @@ export function ordersRouter(ctx: AppContext) {
           }
           return acc;
         }, {});
+        const otherProductName = cleanText(item.otherProductName);
+        const itemNotes = cleanText(item.itemNotes);
+        const notes = isOthers && otherProductName
+          ? itemNotes
+            ? `Others product: ${otherProductName}\n${itemNotes}`
+            : `Others product: ${otherProductName}`
+          : itemNotes;
 
         await tx.orderItem.create({
           data: {
@@ -191,7 +235,7 @@ export function ordersRouter(ctx: AppContext) {
             color,
             material,
             measurementSnapshotJson: JSON.stringify(measurementSnapshot),
-            notes: null,
+            notes,
           },
         });
       }
