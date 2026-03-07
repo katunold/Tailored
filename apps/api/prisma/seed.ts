@@ -308,14 +308,6 @@ async function main(): Promise<void> {
     // Deterministic reseed for sample clients.
     await prisma.order.deleteMany({ where: { clientId: client.id } });
     await prisma.currentMeasurement.deleteMany({ where: { clientId: client.id } });
-    await prisma.clientMeasurementProfile.deleteMany({ where: { clientId: client.id } });
-
-    await prisma.clientMeasurementProfile.create({
-      data: {
-        clientId: client.id,
-        valuesJson: JSON.stringify(seedClient.profileMeasurements),
-      },
-    });
 
     for (const itemType of itemTypes) {
       const dbItemType = itemTypeByName.get(itemType.name);

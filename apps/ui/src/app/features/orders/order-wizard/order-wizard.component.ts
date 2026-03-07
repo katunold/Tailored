@@ -77,8 +77,8 @@ export class OrderWizardComponent implements OnInit {
   protected clientSearchTerm = '';
   protected selectedItemTypeName = '';
   protected selectedTemplateFields: OrderItemTemplateField[] = [];
-  protected clientProfileMeasurements: Record<string, number> = {};
-  protected carriedMeasurements: Record<string, number> = {};
+  protected clientProfileMeasurementsByItemType: Record<number, Record<string, number>> = {};
+  protected carriedMeasurementsByItemType: Record<number, Record<string, number>> = {};
   protected addedItems: CreateOrderPayload['items'] = [];
 
   protected readonly clientForm = this.fb.group({
@@ -134,8 +134,8 @@ export class OrderWizardComponent implements OnInit {
           },
           { emitEvent: false }
         );
-        this.clientProfileMeasurements = {};
-        this.carriedMeasurements = {};
+        this.clientProfileMeasurementsByItemType = {};
+        this.carriedMeasurementsByItemType = {};
         this.applyProfileValuesToMeasurementForm();
         return;
       }
@@ -154,7 +154,7 @@ export class OrderWizardComponent implements OnInit {
       );
       this.clientSearchTerm = '';
       this.filterClients('');
-      this.carriedMeasurements = {};
+      this.carriedMeasurementsByItemType = {};
       this.loadClientProfile(selectedClient.id);
     });
 
@@ -448,8 +448,8 @@ export class OrderWizardComponent implements OnInit {
       },
       { emitEvent: false }
     );
-    this.clientProfileMeasurements = {};
-    this.carriedMeasurements = {};
+    this.clientProfileMeasurementsByItemType = {};
+    this.carriedMeasurementsByItemType = {};
     this.applyProfileValuesToMeasurementForm();
   }
 
@@ -541,7 +541,7 @@ export class OrderWizardComponent implements OnInit {
       .subscribe((fields) => {
         this.selectedTemplateFields = fields.filter((field) => field.type === 'number');
         const useCurrent = this.measurementModeForm.value.useCurrentMeasurements ?? true;
-        const sourceValues = useCurrent ? this.currentMeasurementSourceValues() : {};
+        const sourceValues = useCurrent ? this.currentMeasurementSourceValues(itemTypeId) : {};
 
         for (const field of this.selectedTemplateFields) {
           const value = field.key in sourceValues ? sourceValues[field.key] : null;
@@ -658,7 +658,11 @@ export class OrderWizardComponent implements OnInit {
         })
       )
       .subscribe((profile) => {
-        this.clientProfileMeasurements = profile?.values ?? {};
+        const valuesByItemType: Record<number, Record<string, number>> = {};
+        for (const product of profile?.products ?? []) {
+          valuesByItemType[product.itemTypeId] = product.values ?? {};
+        }
+        this.clientProfileMeasurementsByItemType = valuesByItemType;
         this.applyProfileValuesToMeasurementForm();
       });
   }
@@ -668,7 +672,12 @@ export class OrderWizardComponent implements OnInit {
       return;
     }
 
-    const sourceValues = this.currentMeasurementSourceValues();
+    const selectedItemTypeId = this.orderForm.value.itemTypeId ?? null;
+    if (!selectedItemTypeId) {
+      return;
+    }
+
+    const sourceValues = this.currentMeasurementSourceValues(selectedItemTypeId);
     const patch: Record<string, number | null> = {};
 
     for (const field of this.selectedTemplateFields) {
@@ -679,37 +688,45 @@ export class OrderWizardComponent implements OnInit {
     this.measurementForm.patchValue(patch);
   }
 
-  private currentMeasurementSourceValues(): Record<string, number> {
+  private currentMeasurementSourceValues(itemTypeId: number): Record<string, number> {
     return {
-      ...this.clientProfileMeasurements,
-      ...this.carriedMeasurements
+      ...(this.clientProfileMeasurementsByItemType[itemTypeId] ?? {}),
+      ...(this.carriedMeasurementsByItemType[itemTypeId] ?? {})
     };
   }
 
   private captureCarriedMeasurements(itemPayload: CreateOrderPayload['items'][number]): void {
+    const itemTypeId = itemPayload.itemTypeId;
     const values = itemPayload.measurementsInput ?? {};
     if (Object.keys(values).length === 0) {
       return;
     }
 
-    this.carriedMeasurements = {
-      ...this.carriedMeasurements,
-      ...values
+    const existingValues = this.carriedMeasurementsByItemType[itemTypeId] ?? {};
+    this.carriedMeasurementsByItemType = {
+      ...this.carriedMeasurementsByItemType,
+      [itemTypeId]: {
+        ...existingValues,
+        ...values
+      }
     };
   }
 
   private rebuildCarriedMeasurements(): void {
-    const rebuilt: Record<string, number> = {};
+    const rebuilt: Record<number, Record<string, number>> = {};
 
     for (const item of this.addedItems) {
       const values = item.measurementsInput ?? {};
       if (Object.keys(values).length === 0) {
         continue;
       }
-      Object.assign(rebuilt, values);
+      rebuilt[item.itemTypeId] = {
+        ...(rebuilt[item.itemTypeId] ?? {}),
+        ...values
+      };
     }
 
-    this.carriedMeasurements = rebuilt;
+    this.carriedMeasurementsByItemType = rebuilt;
   }
 
   private areRequiredMeasurementsSatisfied(): boolean {
@@ -808,7 +825,12 @@ export class OrderWizardComponent implements OnInit {
   }
 
   private hasProfileValue(fieldKey: string): boolean {
-    const value = this.clientProfileMeasurements[fieldKey];
+    const selectedItemTypeId = this.orderForm.value.itemTypeId ?? null;
+    if (!selectedItemTypeId) {
+      return false;
+    }
+    const sourceValues = this.currentMeasurementSourceValues(selectedItemTypeId);
+    const value = sourceValues[fieldKey];
     return value !== null && value !== undefined && Number.isFinite(Number(value));
   }
 
