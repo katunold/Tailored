@@ -2,11 +2,11 @@ import { Router } from "express";
 import { AppContext } from "../app.ts";
 import { UpsertCurrentMeasurementSchema } from "../validation/schemas.ts";
 
-type ProfileRow = {
-  id: number;
-  client_id: number;
-  values_json: string;
-  updated_at: Date | string;
+type MeasurementField = {
+  key: string;
+  label: string;
+  type: "number" | "text";
+  required: boolean;
 };
 
 const DEFAULT_MEASUREMENT_FIELDS = [
@@ -20,6 +20,65 @@ const DEFAULT_MEASUREMENT_FIELDS = [
   { key: "width", label: "Width", type: "number", required: false },
 ] as const;
 
+function parseFieldsJson(fieldsJson: string): MeasurementField[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(fieldsJson);
+  } catch {
+    return [];
+  }
+
+  if (!Array.isArray(parsed)) {
+    return [];
+  }
+
+  const fields: MeasurementField[] = [];
+  for (const field of parsed) {
+    if (!field || typeof field !== "object") continue;
+    const f = field as {
+      key?: string;
+      label?: string;
+      type?: string;
+      required?: boolean;
+    };
+
+    const key = String(f.key || "").trim();
+    if (!key) continue;
+
+    fields.push({
+      key,
+      label: String(f.label || key),
+      type: f.type === "text" ? "text" : "number",
+      required: Boolean(f.required),
+    });
+  }
+
+  return fields;
+}
+
+function parseValuesJson(valuesJson: string | null): Record<string, number> {
+  if (!valuesJson) return {};
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(valuesJson);
+  } catch {
+    return {};
+  }
+
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return {};
+  }
+
+  return Object.entries(parsed as Record<string, unknown>).reduce<Record<string, number>>((acc, [key, value]) => {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric)) {
+      acc[key] = numeric;
+    }
+    return acc;
+  }, {});
+}
+
 export function measurementsRouter(ctx: AppContext) {
   const route = Router();
   const parseId = (value: string): number | null => {
@@ -28,77 +87,56 @@ export function measurementsRouter(ctx: AppContext) {
   };
 
   // GET /api/measurements/fields
-  route.get("/fields", async (_req, res) => {
-    const templates = await ctx.prisma.measurementTemplate.findMany({
-      select: { fieldsJson: true },
-    });
+  route.get("/fields", async (req, res) => {
+    const itemTypeIdRaw = String(req.query.itemTypeId || "").trim();
+    const itemTypeId = itemTypeIdRaw ? parseId(itemTypeIdRaw) : null;
 
-    const byKey = new Map<string, { key: string; label: string; type: string; required: boolean }>();
+    if (itemTypeIdRaw && itemTypeId === null) {
+      return res.status(400).json({ error: "Invalid item type id" });
+    }
 
-    for (const tpl of templates) {
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(tpl.fieldsJson);
-      } catch {
-        continue;
-      }
+    let templatesToUse: Array<{ fieldsJson: string }> = [];
+    if (itemTypeId === null) {
+      templatesToUse = await ctx.prisma.measurementTemplate.findMany({
+        select: { fieldsJson: true },
+      });
+    } else {
+      const scopedTemplate = await ctx.prisma.measurementTemplate.findUnique({
+        where: { itemTypeId },
+        select: { fieldsJson: true },
+      });
+      templatesToUse = scopedTemplate ? [scopedTemplate] : [];
+    }
 
-      const fields = Array.isArray(parsed) ? parsed : [];
+    const byKey = new Map<string, MeasurementField>();
 
-      for (const field of fields) {
-        if (!field || typeof field !== "object") continue;
-
-        const f = field as {
-          key?: string;
-          label?: string;
-          type?: string;
-          required?: boolean;
-        };
-
-        const key = String(f.key || "").trim();
-        if (!key) continue;
-
+    for (const tpl of templatesToUse) {
+      for (const field of parseFieldsJson(tpl.fieldsJson)) {
+        const key = field.key;
         const existing = byKey.get(key);
-        const normalized = {
-          key,
-          label: String(f.label || key),
-          type: f.type === "text" ? "text" : "number",
-          required: Boolean(f.required),
-        };
-
         if (!existing) {
-          byKey.set(key, normalized);
+          byKey.set(key, field);
           continue;
         }
 
         byKey.set(key, {
           ...existing,
-          required: existing.required || normalized.required,
+          required: existing.required || field.required,
         });
       }
     }
 
-    // Fallback: if templates are missing/broken, derive known keys from stored profile/current values.
+    // Fallback: if templates are missing/broken, derive known keys from stored item measurements.
     if (byKey.size === 0) {
       const knownValuesRows = (await ctx.prisma.$queryRawUnsafe(
-        `SELECT values_json FROM client_measurement_profiles
-         UNION ALL
-         SELECT values_json FROM current_measurements`
+        itemTypeId === null
+          ? `SELECT values_json FROM current_measurements`
+          : `SELECT values_json FROM current_measurements WHERE item_type_id = ?`,
+        ...(itemTypeId === null ? [] : [itemTypeId])
       )) as Array<{ values_json: string }>;
 
       for (const row of knownValuesRows) {
-        let values: unknown;
-        try {
-          values = JSON.parse(row.values_json);
-        } catch {
-          continue;
-        }
-
-        if (!values || typeof values !== "object" || Array.isArray(values)) {
-          continue;
-        }
-
-        for (const key of Object.keys(values)) {
+        for (const key of Object.keys(parseValuesJson(row.values_json))) {
           const trimmed = key.trim();
           if (!trimmed || byKey.has(trimmed)) continue;
 
@@ -131,72 +169,79 @@ export function measurementsRouter(ctx: AppContext) {
     const clientId = parseId(req.params.clientId);
     if (clientId === null) return res.status(400).json({ error: "Invalid client id" });
 
-    const rows = (await ctx.prisma.$queryRawUnsafe(
-      `SELECT id, client_id, values_json, updated_at
-       FROM client_measurement_profiles
-       WHERE client_id = ?
-       LIMIT 1`,
-      clientId
-    )) as ProfileRow[];
-    const profile = rows[0] ?? null;
+    const itemTypeIdRaw = String(req.query.itemTypeId || "").trim();
+    const itemTypeId = itemTypeIdRaw ? parseId(itemTypeIdRaw) : null;
+    if (itemTypeIdRaw && itemTypeId === null) {
+      return res.status(400).json({ error: "Invalid item type id" });
+    }
 
-    res.json(
-      profile
-        ? {
-            id: profile.id,
-            clientId: profile.client_id,
-            valuesJson: profile.values_json,
-            updatedAt: profile.updated_at,
-            values: JSON.parse(profile.values_json),
-          }
-        : null
-    );
+    const itemTypes = await ctx.prisma.itemType.findMany({
+      where: { isActive: true, ...(itemTypeId === null ? {} : { id: itemTypeId }) },
+      orderBy: { name: "asc" },
+      include: {
+        measurementTemplate: true,
+        currentMeasures: {
+          where: { clientId },
+          take: 1,
+        },
+      },
+    });
+
+    if (itemTypeId !== null && itemTypes.length === 0) {
+      return res.status(404).json({ error: "Item type not found" });
+    }
+
+    const products = itemTypes.map((itemTypeRow) => {
+      const current = itemTypeRow.currentMeasures[0] ?? null;
+      return {
+        itemTypeId: itemTypeRow.id,
+        itemTypeName: itemTypeRow.name,
+        fields: itemTypeRow.measurementTemplate ? parseFieldsJson(itemTypeRow.measurementTemplate.fieldsJson) : [],
+        measurementId: current?.id ?? null,
+        valuesJson: current?.valuesJson ?? null,
+        updatedAt: current?.updatedAt ?? null,
+        values: parseValuesJson(current?.valuesJson ?? null),
+      };
+    });
+
+    if (itemTypeId !== null) {
+      return res.json(products[0] ?? null);
+    }
+
+    res.json({ clientId, products });
   });
 
-  // PUT /api/measurements/profile/:clientId
-  route.put("/profile/:clientId", async (req, res) => {
+  // PUT /api/measurements/profile/:clientId/:itemTypeId
+  route.put("/profile/:clientId/:itemTypeId", async (req, res) => {
     const clientId = parseId(req.params.clientId);
     if (clientId === null) return res.status(400).json({ error: "Invalid client id" });
+    const itemTypeId = parseId(req.params.itemTypeId);
+    if (itemTypeId === null) return res.status(400).json({ error: "Invalid item type id" });
     const dto = UpsertCurrentMeasurementSchema.parse(req.body);
     const valuesJson = JSON.stringify(dto.values);
 
-    const existingRows = (await ctx.prisma.$queryRawUnsafe(
-      `SELECT id FROM client_measurement_profiles WHERE client_id = ? LIMIT 1`,
-      clientId
-    )) as Array<{ id: number }>;
-    const existing = existingRows[0] ?? null;
-
-    if (existing) {
-      await ctx.prisma.$executeRawUnsafe(
-        `UPDATE client_measurement_profiles
-         SET values_json = ?, updated_at = CURRENT_TIMESTAMP
-         WHERE client_id = ?`,
-        valuesJson,
-        clientId
-      );
-    } else {
-      await ctx.prisma.$executeRawUnsafe(
-        `INSERT INTO client_measurement_profiles (client_id, values_json, updated_at)
-         VALUES (?, ?, CURRENT_TIMESTAMP)`,
-        clientId,
-        valuesJson
-      );
+    const itemType = await ctx.prisma.itemType.findUnique({
+      where: { id: itemTypeId },
+      include: { measurementTemplate: true },
+    });
+    if (!itemType) {
+      return res.status(404).json({ error: "Item type not found" });
     }
 
-    const savedRows = (await ctx.prisma.$queryRawUnsafe(
-      `SELECT id, client_id, values_json, updated_at
-       FROM client_measurement_profiles
-       WHERE client_id = ?
-       LIMIT 1`,
-      clientId
-    )) as ProfileRow[];
-    const saved = savedRows[0];
+    const saved = await ctx.prisma.currentMeasurement.upsert({
+      where: { clientId_itemTypeId: { clientId, itemTypeId } },
+      update: { valuesJson },
+      create: { clientId, itemTypeId, valuesJson },
+    });
 
     res.json({
       id: saved.id,
-      clientId: saved.client_id,
-      valuesJson: saved.values_json,
-      updatedAt: saved.updated_at,
+      clientId: saved.clientId,
+      itemTypeId: saved.itemTypeId,
+      itemTypeName: itemType.name,
+      fields: itemType.measurementTemplate ? parseFieldsJson(itemType.measurementTemplate.fieldsJson) : [],
+      valuesJson: saved.valuesJson,
+      updatedAt: saved.updatedAt,
       values: dto.values,
     });
   });

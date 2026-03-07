@@ -8,10 +8,11 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatSelectModule } from '@angular/material/select';
 import { MatTableModule } from '@angular/material/table';
 import { MatTabsModule } from '@angular/material/tabs';
 import { ActivatedRoute, Router } from '@angular/router';
-import { catchError, finalize, forkJoin, of } from 'rxjs';
+import { catchError, finalize, forkJoin, map, of, switchMap } from 'rxjs';
 import { PageHeaderComponent } from '../../../shared/page-header/page-header.component';
 import { EmptyStateComponent } from '../../../shared/empty-state/empty-state.component';
 import { ConfirmDialogComponent } from '../../../shared/confirm-dialog/confirm-dialog.component';
@@ -21,7 +22,7 @@ import { OrderStatus } from '../../../shared/status/status.types';
 import { phoneValidator } from '../../../shared/validators/phone.validator';
 import { OrdersService, ClientOrderRow } from '../../orders/orders.service';
 import { ClientDto, ClientsService } from '../clients.service';
-import { MeasurementFieldDto, MeasurementsService } from '../measurements.service';
+import { MeasurementsService, MeasurementProfileDto } from '../measurements.service';
 
 @Component({
   selector: 'app-client-details',
@@ -34,6 +35,7 @@ import { MeasurementFieldDto, MeasurementsService } from '../measurements.servic
     MatInputModule,
     MatProgressSpinnerModule,
     MatSnackBarModule,
+    MatSelectModule,
     MatTableModule,
     MatTabsModule,
     DatePipe,
@@ -63,7 +65,8 @@ export class ClientDetailsComponent implements OnInit {
   protected isMeasurementsLoading = false;
   protected isSavingMeasurements = false;
   protected isOrdersLoading = false;
-  protected measurementFields: MeasurementFieldDto[] = [];
+  protected measurementProducts: MeasurementProfileDto['products'] = [];
+  protected selectedItemTypeId: number | null = null;
 
   protected readonly orderColumns = ['id', 'item', 'status', 'deliveryDate'];
   protected orders: ClientOrderRow[] = [];
@@ -99,14 +102,15 @@ export class ClientDetailsComponent implements OnInit {
   }
 
   protected saveMeasurements(): void {
-    if (!this.clientId || this.measurementFields.length === 0) {
+    const selectedProduct = this.selectedMeasurementProduct();
+    if (!this.clientId || !selectedProduct) {
       return;
     }
 
     this.isSavingMeasurements = true;
     const values: Record<string, number> = {};
 
-    for (const field of this.measurementFields) {
+    for (const field of selectedProduct.fields) {
       const raw = this.measurementForm.get(field.key)?.value;
 
       if (raw === null || raw === undefined || raw === '') {
@@ -122,7 +126,7 @@ export class ClientDetailsComponent implements OnInit {
     }
 
     this.measurementsService
-      .upsertMeasurementProfile(this.clientId, values)
+      .upsertMeasurementProfile(this.clientId, selectedProduct.itemTypeId, values)
       .pipe(
         catchError(() => {
           this.snackBar.open('Could not save measurements.', 'Close', { duration: 2500 });
@@ -138,6 +142,19 @@ export class ClientDetailsComponent implements OnInit {
           return;
         }
 
+        const nextProducts = this.measurementProducts.map((product) =>
+          product.itemTypeId === saved.itemTypeId
+            ? {
+                ...product,
+                measurementId: saved.id,
+                valuesJson: saved.valuesJson,
+                updatedAt: saved.updatedAt,
+                values: saved.values
+              }
+            : product
+        );
+        this.measurementProducts = nextProducts;
+        this.selectMeasurementProduct(saved.itemTypeId);
         this.captureMeasurementSnapshot();
         this.measurementForm.markAsPristine();
         this.snackBar.open('Measurements saved.', 'Close', { duration: 1800 });
@@ -149,6 +166,33 @@ export class ClientDetailsComponent implements OnInit {
     this.measurementForm.markAsPristine();
     this.measurementForm.markAsUntouched();
     this.snackBar.open('Measurements reset.', 'Close', { duration: 1800 });
+  }
+
+  protected hasUnsavedMeasurementChanges(): boolean {
+    const selectedProduct = this.selectedMeasurementProduct();
+    if (!selectedProduct) {
+      return false;
+    }
+
+    const fields = Array.isArray(selectedProduct.fields) ? selectedProduct.fields : [];
+    if (fields.length === 0) {
+      return false;
+    }
+
+    for (const field of fields) {
+      const currentRaw = this.measurementForm.get(field.key)?.value;
+      const current =
+        currentRaw === null || currentRaw === undefined || currentRaw === '' ? null : Number(currentRaw);
+
+      const originalRaw = this.originalMeasurementValues[field.key];
+      const original = originalRaw === null || originalRaw === undefined ? null : Number(originalRaw);
+
+      if (current !== original) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   protected archiveClient(): void {
@@ -212,39 +256,102 @@ export class ClientDetailsComponent implements OnInit {
 
   private loadMeasurements(clientId: number): void {
     this.isMeasurementsLoading = true;
-    this.measurementFields = [];
+    this.measurementProducts = [];
+    this.selectedItemTypeId = null;
     this.originalMeasurementValues = {};
     this.resetMeasurementForm();
 
-    forkJoin({
-      fields: this.measurementsService.getMeasurementFields().pipe(
-        catchError(() => {
-          this.snackBar.open('Could not load measurement fields.', 'Close', { duration: 2500 });
-          return of([]);
-        })
-      ),
-      profile: this.measurementsService.getMeasurementProfile(clientId).pipe(catchError(() => of(null)))
-    })
+    this.measurementsService
+      .getMeasurementProfile(clientId)
       .pipe(
+        switchMap((profile) => {
+          const normalizedProducts = this.normalizeMeasurementProducts(profile);
+          if (normalizedProducts.length > 0) {
+            return of(normalizedProducts);
+          }
+
+          // Compatibility fallback for older API responses that don't return grouped products yet.
+          return this.ordersService.getItemTypes().pipe(
+            catchError(() => of([])),
+            switchMap((itemTypes) => {
+              if (itemTypes.length === 0) {
+                return of([] as MeasurementProfileDto['products']);
+              }
+
+              return forkJoin(
+                itemTypes.map((itemType) =>
+                  this.measurementsService.getMeasurementFields(itemType.id).pipe(
+                    map((fields) => ({
+                      itemTypeId: itemType.id,
+                      itemTypeName: itemType.name,
+                      fields: Array.isArray(fields) ? fields : [],
+                      measurementId: null,
+                      valuesJson: null,
+                      updatedAt: null,
+                      values: {}
+                    })),
+                    catchError(() =>
+                      of({
+                        itemTypeId: itemType.id,
+                        itemTypeName: itemType.name,
+                        fields: [],
+                        measurementId: null,
+                        valuesJson: null,
+                        updatedAt: null,
+                        values: {}
+                      })
+                    )
+                  )
+                )
+              );
+            })
+          );
+        }),
+        catchError(() => {
+          this.snackBar.open('Could not load measurements.', 'Close', { duration: 2500 });
+          return of([] as MeasurementProfileDto['products']);
+        }),
         finalize(() => {
           this.isMeasurementsLoading = false;
           this.cdr.detectChanges();
         })
       )
-      .subscribe(({ fields, profile }) => {
-        this.measurementFields = fields;
-        const profileValues = profile?.values ?? {};
-
-        for (const field of this.measurementFields) {
-          const value = field.key in profileValues ? profileValues[field.key] : null;
-          this.measurementForm.addControl(field.key, this.fb.control(value));
-          this.originalMeasurementValues[field.key] = value;
+      .subscribe((products) => {
+        this.measurementProducts = products;
+        if (this.measurementProducts.length === 0) {
+          return;
         }
 
-        this.measurementForm.markAsPristine();
-        this.measurementForm.markAsUntouched();
+        const preferredItemTypeId =
+          this.selectedItemTypeId && this.measurementProducts.some((p) => p.itemTypeId === this.selectedItemTypeId)
+            ? this.selectedItemTypeId
+            : this.measurementProducts[0].itemTypeId;
+        this.selectMeasurementProduct(preferredItemTypeId);
         this.cdr.detectChanges();
       });
+  }
+
+  protected selectMeasurementProduct(itemTypeId: number): void {
+    const product = this.measurementProducts.find((entry) => entry.itemTypeId === itemTypeId) ?? null;
+    this.selectedItemTypeId = product?.itemTypeId ?? null;
+    this.originalMeasurementValues = {};
+    this.resetMeasurementForm();
+
+    if (!product) {
+      return;
+    }
+
+    const fields = Array.isArray(product.fields) ? product.fields : [];
+    const values = product.values ?? {};
+
+    for (const field of fields) {
+      const value = field.key in values ? values[field.key] : null;
+      this.measurementForm.addControl(field.key, this.fb.control(value));
+      this.originalMeasurementValues[field.key] = value;
+    }
+
+    this.measurementForm.markAsPristine();
+    this.measurementForm.markAsUntouched();
   }
 
   private loadOrders(clientId: number): void {
@@ -276,12 +383,39 @@ export class ClientDetailsComponent implements OnInit {
 
   private captureMeasurementSnapshot(): void {
     const nextSnapshot: Record<string, number | null> = {};
+    const selectedProduct = this.selectedMeasurementProduct();
+    if (!selectedProduct) {
+      this.originalMeasurementValues = nextSnapshot;
+      return;
+    }
 
-    for (const field of this.measurementFields) {
+    const fields = Array.isArray(selectedProduct.fields) ? selectedProduct.fields : [];
+    for (const field of fields) {
       const raw = this.measurementForm.get(field.key)?.value;
       nextSnapshot[field.key] = raw === null || raw === undefined || raw === '' ? null : Number(raw);
     }
 
     this.originalMeasurementValues = nextSnapshot;
+  }
+
+  protected selectedMeasurementProduct(): MeasurementProfileDto['products'][number] | null {
+    if (this.selectedItemTypeId === null) return null;
+    return this.measurementProducts.find((entry) => entry.itemTypeId === this.selectedItemTypeId) ?? null;
+  }
+
+  private normalizeMeasurementProducts(profile: unknown): MeasurementProfileDto['products'] {
+    const rawProducts = (profile as { products?: unknown } | null)?.products;
+    if (!Array.isArray(rawProducts)) {
+      return [];
+    }
+
+    return rawProducts.map((product) => {
+      const row = product as MeasurementProfileDto['products'][number];
+      return {
+        ...row,
+        fields: Array.isArray(row.fields) ? row.fields : [],
+        values: row.values ?? {}
+      };
+    });
   }
 }

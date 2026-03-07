@@ -17,21 +17,9 @@ model Client {
 
   orders              Order[]
   currentMeasures     CurrentMeasurement[]
-  measurementProfile  ClientMeasurementProfile?
 
   @@index([fullName])
   @@map("clients")
-}
-
-model ClientMeasurementProfile {
-  id         Int      @id @default(autoincrement())
-  clientId   Int      @unique @map("client_id")
-  valuesJson String   @map("values_json")
-  updatedAt  DateTime @updatedAt @map("updated_at")
-
-  client     Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-
-  @@map("client_measurement_profiles")
 }
 
 model ItemType {

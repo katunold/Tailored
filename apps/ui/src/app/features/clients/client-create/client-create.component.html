@@ -1,4 +1,4 @@
-<app-page-header title="New Client" [breadcrumbs]="['Home', 'Clients', 'New Client']" subtitle="Create client profile and optionally add measurements.">
+<app-page-header title="New Client" [breadcrumbs]="['Home', 'Clients', 'New Client']" subtitle="Create client profile.">
   <div header-actions>
     <button mat-stroked-button type="button" (click)="cancel()" [disabled]="isSaving">Cancel</button>
     <button mat-flat-button color="primary" type="button" (click)="saveClient()" [disabled]="isSaving">Create Client</button>
@@ -29,25 +29,5 @@
         <textarea matInput rows="3" formControlName="notes"></textarea>
       </mat-form-field>
     </form>
-  </section>
-
-  <section class="section">
-    <h3>Measurements (Optional)</h3>
-
-    @if (isLoadingFields) {
-      <section class="loading-state">
-        <mat-spinner diameter="32"></mat-spinner>
-        <p>Loading measurement fields...</p>
-      </section>
-    } @else {
-      <form [formGroup]="measurementForm" class="grid">
-        @for (field of measurementFields; track field.key) {
-          <mat-form-field appearance="outline">
-            <mat-label>{{ field.label }}</mat-label>
-            <input matInput type="number" [formControlName]="field.key" />
-          </mat-form-field>
-        }
-      </form>
-    }
   </section>
 </mat-card>

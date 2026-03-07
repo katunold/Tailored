@@ -10,12 +10,28 @@ export interface MeasurementFieldDto {
   required: boolean;
 }
 
-export interface MeasurementProfileDto {
+export interface MeasurementProductProfileDto {
   id: number;
   clientId: number;
+  itemTypeId: number;
+  itemTypeName: string;
+  fields: MeasurementFieldDto[];
   valuesJson: string;
   updatedAt: string;
   values: Record<string, number>;
+}
+
+export interface MeasurementProfileDto {
+  clientId: number;
+  products: Array<{
+    itemTypeId: number;
+    itemTypeName: string;
+    fields: MeasurementFieldDto[];
+    measurementId: number | null;
+    valuesJson: string | null;
+    updatedAt: string | null;
+    values: Record<string, number>;
+  }>;
 }
 
 const FALLBACK_MEASUREMENT_FIELDS: MeasurementFieldDto[] = [
@@ -35,22 +51,24 @@ export class MeasurementsService {
 
   private readonly measurementsUrl = `${resolveApiBase()}/api/measurements`;
 
-  getMeasurementFields(): Observable<MeasurementFieldDto[]> {
-    return this.http.get<MeasurementFieldDto[]>(`${this.measurementsUrl}/fields`).pipe(
+  getMeasurementFields(itemTypeId?: number): Observable<MeasurementFieldDto[]> {
+    const suffix = itemTypeId ? `?itemTypeId=${itemTypeId}` : '';
+    return this.http.get<MeasurementFieldDto[]>(`${this.measurementsUrl}/fields${suffix}`).pipe(
       map((fields) => (Array.isArray(fields) && fields.length > 0 ? fields : FALLBACK_MEASUREMENT_FIELDS)),
       catchError(() => of(FALLBACK_MEASUREMENT_FIELDS))
     );
   }
 
-  getMeasurementProfile(clientId: number | string): Observable<MeasurementProfileDto | null> {
-    return this.http.get<MeasurementProfileDto | null>(`${this.measurementsUrl}/profile/${clientId}`);
+  getMeasurementProfile(clientId: number | string): Observable<MeasurementProfileDto> {
+    return this.http.get<MeasurementProfileDto>(`${this.measurementsUrl}/profile/${clientId}`);
   }
 
   upsertMeasurementProfile(
     clientId: number | string,
+    itemTypeId: number,
     values: Record<string, number>
-  ): Observable<MeasurementProfileDto> {
-    return this.http.put<MeasurementProfileDto>(`${this.measurementsUrl}/profile/${clientId}`, {
+  ): Observable<MeasurementProductProfileDto> {
+    return this.http.put<MeasurementProductProfileDto>(`${this.measurementsUrl}/profile/${clientId}/${itemTypeId}`, {
       values
     });
   }

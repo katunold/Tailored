@@ -85,22 +85,35 @@ export function ordersRouter(ctx: AppContext) {
       templates.map((t: any) => [t.itemTypeId, JSON.parse(t.fieldsJson)])
     );
 
-    // get current client profile values once, then simulate order item flow to validate missing fields
-    const profileRows = (await ctx.prisma.$queryRawUnsafe(
-      `SELECT values_json FROM client_measurement_profiles WHERE client_id = ? LIMIT 1`,
-      dto.clientId
-    )) as Array<{ values_json: string }>;
-    const existingProfile = profileRows[0] ?? null;
-    const baseProfileValues = existingProfile ? (JSON.parse(existingProfile.values_json) as Record<string, number>) : {};
-    let workingProfileValues: Record<string, number> = { ...baseProfileValues };
+    // Get current measurements per item type, then simulate order item flow to validate required fields.
+    const currentRows = await ctx.prisma.currentMeasurement.findMany({
+      where: { clientId: dto.clientId, itemTypeId: { in: itemTypeIds } },
+      select: { itemTypeId: true, valuesJson: true },
+    });
+    const baseValuesByType = new Map<number, Record<string, number>>();
+    for (const row of currentRows) {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(row.valuesJson);
+      } catch {
+        parsed = {};
+      }
+      const values = parsed && typeof parsed === "object" && !Array.isArray(parsed)
+        ? (parsed as Record<string, number>)
+        : {};
+      baseValuesByType.set(row.itemTypeId, values);
+    }
+
+    const workingValuesByType = new Map<number, Record<string, number>>(baseValuesByType);
     const missingByItem: Array<{ itemTypeId: number; missingFields: string[] }> = [];
 
     for (const item of dto.items) {
+      const existingValues = workingValuesByType.get(item.itemTypeId) ?? {};
       const useCurrent = item.useCurrentMeasurements === true;
       const inputValues = item.measurementsInput ?? {};
       const hasInputValues = Object.keys(inputValues).length > 0;
       const candidateValues = useCurrent
-        ? { ...workingProfileValues, ...inputValues }
+        ? { ...existingValues, ...inputValues }
         : { ...inputValues };
 
       const templateFields = templateFieldsByType.get(item.itemTypeId) ?? [];
@@ -118,7 +131,7 @@ export function ordersRouter(ctx: AppContext) {
       }
 
       if (hasInputValues) {
-        workingProfileValues = candidateValues;
+        workingValuesByType.set(item.itemTypeId, candidateValues);
       }
     }
 
@@ -140,11 +153,11 @@ export function ordersRouter(ctx: AppContext) {
         },
       });
 
-      let profileValues: Record<string, number> = { ...baseProfileValues };
-      let hasProfileUpdates = false;
+      const updatedValuesByType = new Map<number, Record<string, number>>(baseValuesByType);
 
       // For each item, resolve measurements + snapshot + defaults
       for (const item of dto.items) {
+        const existingValues = updatedValuesByType.get(item.itemTypeId) ?? {};
         const d = defaultsByType.get(item.itemTypeId);
 
         const color = cleanText(item.color) ?? d?.defaultColor ?? "Default";
@@ -153,12 +166,11 @@ export function ordersRouter(ctx: AppContext) {
         const inputValues = item.measurementsInput ?? {};
         const hasInputValues = Object.keys(inputValues).length > 0;
         const sourceValues = useCurrent
-          ? { ...profileValues, ...inputValues }
+          ? { ...existingValues, ...inputValues }
           : { ...inputValues };
 
         if (hasInputValues) {
-          profileValues = { ...profileValues, ...inputValues };
-          hasProfileUpdates = true;
+          updatedValuesByType.set(item.itemTypeId, { ...existingValues, ...inputValues });
         }
 
         const templateFields = templateFieldsByType.get(item.itemTypeId) ?? [];
@@ -184,14 +196,21 @@ export function ordersRouter(ctx: AppContext) {
         });
       }
 
-      if (hasProfileUpdates) {
+      const toPersist = Array.from(updatedValuesByType.entries())
+        .filter(([itemTypeId, values]) => {
+          const base = baseValuesByType.get(itemTypeId) ?? {};
+          return JSON.stringify(base) !== JSON.stringify(values);
+        });
+
+      for (const [itemTypeId, values] of toPersist) {
         await tx.$executeRawUnsafe(
-          `INSERT INTO client_measurement_profiles (client_id, values_json, updated_at)
-           VALUES (?, ?, CURRENT_TIMESTAMP)
-           ON CONFLICT(client_id)
+          `INSERT INTO current_measurements (client_id, item_type_id, values_json, updated_at)
+           VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+           ON CONFLICT(client_id, item_type_id)
            DO UPDATE SET values_json = excluded.values_json, updated_at = CURRENT_TIMESTAMP`,
           dto.clientId,
-          JSON.stringify(profileValues)
+          itemTypeId,
+          JSON.stringify(values)
         );
       }
 
