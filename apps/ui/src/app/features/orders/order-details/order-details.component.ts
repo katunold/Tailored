@@ -1,9 +1,10 @@
-import { DatePipe } from '@angular/common';
-import { ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
+import { CommonModule, DatePipe } from '@angular/common';
+import { ChangeDetectorRef, Component, Inject, OnInit, inject } from '@angular/core';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
+import { MAT_DIALOG_DATA, MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -24,6 +25,79 @@ type StatusOption = {
   label: string;
 };
 
+type OrderItemRow = OrderDetails['items'][number];
+type MeasurementPair = { key: string; value: number };
+
+@Component({
+  selector: 'app-order-item-details-dialog',
+  standalone: true,
+  imports: [CommonModule, MatDialogModule, MatButtonModule],
+  template: `
+    <h2 mat-dialog-title>Item Details</h2>
+    <mat-dialog-content>
+      <section class="details-grid">
+        <div><strong>Item:</strong> {{ data.item.itemName }}</div>
+        <div><strong>Quantity:</strong> {{ data.item.quantity }}</div>
+        <div><strong>Color:</strong> {{ data.item.color || 'Default' }}</div>
+        <div><strong>Material:</strong> {{ data.item.material || 'Standard' }}</div>
+      </section>
+
+      <section class="details-section">
+        <h3>Recorded Measurements</h3>
+        @if (data.measurements.length === 0) {
+          <p class="muted">None</p>
+        } @else {
+          <div class="details-list">
+            @for (pair of data.measurements; track pair.key) {
+              <div><strong>{{ pair.key }}:</strong> {{ pair.value }}</div>
+            }
+          </div>
+        }
+      </section>
+
+      <section class="details-section">
+        <h3>Item Notes</h3>
+        <p>{{ data.item.notes || 'None' }}</p>
+      </section>
+    </mat-dialog-content>
+    <mat-dialog-actions align="end">
+      <button mat-flat-button color="primary" mat-dialog-close>Close</button>
+    </mat-dialog-actions>
+  `,
+  styles: [`
+    .details-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px 14px;
+    }
+    .details-section {
+      margin-top: 14px;
+    }
+    .details-section h3 {
+      margin: 0 0 8px;
+      font-size: 0.95rem;
+    }
+    .details-list {
+      display: grid;
+      gap: 6px;
+    }
+    .muted {
+      opacity: 0.75;
+    }
+    @media (max-width: 760px) {
+      .details-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  `]
+})
+export class OrderItemDetailsDialogComponent {
+  constructor(
+    @Inject(MAT_DIALOG_DATA)
+    protected readonly data: { item: OrderItemRow; measurements: MeasurementPair[] }
+  ) {}
+}
+
 @Component({
   selector: 'app-order-details',
   imports: [
@@ -31,6 +105,7 @@ type StatusOption = {
     RouterLink,
     MatButtonModule,
     MatCardModule,
+    MatDialogModule,
     MatFormFieldModule,
     MatInputModule,
     MatProgressSpinnerModule,
@@ -48,6 +123,7 @@ export class OrderDetailsComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly route = inject(ActivatedRoute);
   private readonly ordersService = inject(OrdersService);
+  private readonly dialog = inject(MatDialog);
   private readonly snackBar = inject(MatSnackBar);
   private readonly cdr = inject(ChangeDetectorRef);
 
@@ -56,7 +132,7 @@ export class OrderDetailsComponent implements OnInit {
   protected isUpdatingStatus = false;
   protected orderId: number | null = null;
   protected order: OrderDetails | null = null;
-  protected readonly displayedColumns = ['itemName', 'quantity', 'color', 'material', 'measurements', 'itemNotes'];
+  protected readonly displayedColumns = ['itemName', 'quantity', 'color', 'material', 'measurements'];
   private readonly templateKeysByItemTypeId = new Map<number, string[]>();
   private isPatchingStatus = false;
 
@@ -101,6 +177,17 @@ export class OrderDetailsComponent implements OnInit {
     return Object.entries(item.measurements)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([key, value]) => ({ key, value }));
+  }
+
+  protected openItemDetails(item: OrderItemRow): void {
+    this.dialog.open(OrderItemDetailsDialogComponent, {
+      width: '560px',
+      maxWidth: '94vw',
+      data: {
+        item,
+        measurements: this.measurementPairs(item)
+      }
+    });
   }
 
   protected onStatusChanged(nextStatus: BackendOrderStatus): void {
