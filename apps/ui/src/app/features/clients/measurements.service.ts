@@ -54,8 +54,13 @@ export class MeasurementsService {
   getMeasurementFields(itemTypeId?: number): Observable<MeasurementFieldDto[]> {
     const suffix = itemTypeId ? `?itemTypeId=${itemTypeId}` : '';
     return this.http.get<MeasurementFieldDto[]>(`${this.measurementsUrl}/fields${suffix}`).pipe(
-      map((fields) => (Array.isArray(fields) && fields.length > 0 ? fields : FALLBACK_MEASUREMENT_FIELDS)),
-      catchError(() => of(FALLBACK_MEASUREMENT_FIELDS))
+      map((fields) => {
+        if (itemTypeId) {
+          return Array.isArray(fields) ? fields : [];
+        }
+        return Array.isArray(fields) && fields.length > 0 ? fields : FALLBACK_MEASUREMENT_FIELDS;
+      }),
+      catchError(() => of(itemTypeId ? [] : FALLBACK_MEASUREMENT_FIELDS))
     );
   }
 

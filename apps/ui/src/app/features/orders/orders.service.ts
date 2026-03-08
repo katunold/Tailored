@@ -82,7 +82,7 @@ export interface CreateOrderPayload {
     itemNotes?: string | null;
     otherProductName?: string | null;
     useCurrentMeasurements?: boolean;
-    measurementsInput?: Record<string, number>;
+    measurementsInput?: Record<string, number | string>;
   }>;
 }
 

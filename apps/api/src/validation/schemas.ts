@@ -33,7 +33,7 @@ export const CreateOrderItemSchema = z.object({
   otherProductName: z.string().optional().nullable(),
 
   useCurrentMeasurements: z.boolean().optional(),
-  measurementsInput: MeasurementValuesSchema.optional(),
+  measurementsInput: ProfileMeasurementValuesSchema.optional(),
 }).superRefine((v, ctx) => {
   // Manual mode requires explicit measurements input.
   if (v.useCurrentMeasurements === false && !v.measurementsInput) {

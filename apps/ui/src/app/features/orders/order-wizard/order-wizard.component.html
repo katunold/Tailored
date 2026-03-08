@@ -1,7 +1,7 @@
 <app-page-header
   title="New Order"
   [breadcrumbs]="['Orders', 'New Order']"
-  subtitle="Configure order item, measurements, and review before submission."
+  subtitle="Configure products, delivery details, and review before submission."
 ></app-page-header>
 
 <mat-card class="page-card" appearance="raised">
@@ -102,97 +102,66 @@
       }
     </mat-step>
 
-    <mat-step [stepControl]="orderForm" label="Order">
+    <mat-step [completed]="addedProductMeasurements.length > 0" label="Products">
       @if (isLoadingItemTypes) {
         <section class="loading-state">
           <mat-spinner diameter="32"></mat-spinner>
           <p>Loading item types...</p>
         </section>
       } @else {
-        <form [formGroup]="orderForm" class="step-grid">
-          <mat-form-field appearance="outline">
-            <mat-label>Item Type</mat-label>
-            <mat-select formControlName="itemTypeId">
-              @for (itemType of itemTypes; track itemType.id) {
-                <mat-option [value]="itemType.id">{{ itemType.name }}</mat-option>
+        <section class="product-measurements">
+          <div class="product-measurements-header">
+            <h3>Product Measurements</h3>
+            <button mat-stroked-button type="button" (click)="openAddProductDialog()">Add Product</button>
+          </div>
+
+          @if (addedProductMeasurements.length === 0) {
+            <p class="queued-item-meta">No product measurements added yet.</p>
+          } @else {
+            <div class="product-measurements-grid">
+              @for (product of addedProductMeasurements; track product.itemTypeId) {
+                <mat-card appearance="outlined" class="product-measurement-card">
+                  <div class="product-measurement-card-header">
+                    <h4>{{ product.itemTypeName }}</h4>
+                    <button mat-stroked-button type="button" (click)="editProductMeasurements(product.itemTypeId)">Edit</button>
+                  </div>
+                  @if (product.values.length === 0) {
+                    <p class="queued-item-meta">No values recorded.</p>
+                  } @else {
+                    <div class="value-grid">
+                      @for (entry of product.values; track entry.key) {
+                        <div class="value-cell">
+                          <span class="value-label">{{ entry.label }}</span>
+                          <span class="value-number">{{ entry.value }}</span>
+                        </div>
+                      }
+                    </div>
+                  }
+                </mat-card>
               }
-            </mat-select>
-          </mat-form-field>
-
-          <mat-form-field appearance="outline">
-            <mat-label>Quantity</mat-label>
-            <input matInput type="number" min="1" formControlName="quantity" />
-          </mat-form-field>
-
-          <mat-form-field appearance="outline">
-            <mat-label>Color</mat-label>
-            <input matInput formControlName="color" />
-          </mat-form-field>
-
-          <mat-form-field appearance="outline">
-            <mat-label>Material</mat-label>
-            <input matInput formControlName="material" />
-          </mat-form-field>
-
-          @if (isOthersSelected()) {
-            <mat-form-field appearance="outline" class="span-all">
-              <mat-label>Product Name</mat-label>
-              <input matInput formControlName="otherProductName" />
-              @if (orderForm.controls.otherProductName.hasError('required')) {
-                <mat-error>Product name is required for Others.</mat-error>
-              } @else if (orderForm.controls.otherProductName.hasError('productExists')) {
-                <mat-error>Product exists and not under others.</mat-error>
-              }
-            </mat-form-field>
+            </div>
           }
-
-          <mat-form-field appearance="outline" class="span-all">
-            <mat-label>{{ isOthersSelected() ? 'Notes for Others (Optional)' : 'Item Notes (Optional)' }}</mat-label>
-            <textarea matInput rows="2" formControlName="itemNotes"></textarea>
-          </mat-form-field>
-
-          <mat-form-field appearance="outline">
-            <mat-label>Delivery Date</mat-label>
-            <input matInput [matDatepicker]="deliveryPicker" formControlName="dueDate" />
-            <mat-datepicker-toggle matIconSuffix [for]="deliveryPicker"></mat-datepicker-toggle>
-            <mat-datepicker #deliveryPicker></mat-datepicker>
-          </mat-form-field>
-
-          <mat-form-field appearance="outline" class="notes-field">
-            <mat-label>Order Notes</mat-label>
-            <textarea matInput rows="3" formControlName="notes"></textarea>
-          </mat-form-field>
-        </form>
+        </section>
       }
     </mat-step>
 
-    <mat-step [stepControl]="measurementModeForm" label="Measurements">
-      <form [formGroup]="measurementModeForm">
-        <mat-checkbox formControlName="useCurrentMeasurements">
-          Use current client profile measurements
-        </mat-checkbox>
-      </form>
-
-      @if (isLoadingTemplate) {
-        <section class="loading-state">
-          <mat-spinner diameter="32"></mat-spinner>
-          <p>Loading required measurement fields...</p>
-        </section>
-      } @else {
-        <form [formGroup]="measurementForm" class="step-grid measurements-grid">
-          @for (field of selectedTemplateFields; track field.key) {
-            <mat-form-field appearance="outline">
-              <mat-label>{{ measurementFieldLabel(field) }}</mat-label>
-              <input
-                matInput
-                type="number"
-                [formControlName]="field.key"
-                [readonly]="isMeasurementFieldReadOnly(field)"
-              />
-            </mat-form-field>
+    <mat-step [stepControl]="deliveryForm" label="Delivery">
+      <form [formGroup]="deliveryForm" class="step-grid">
+        <mat-form-field appearance="outline">
+          <mat-label>Delivery Date</mat-label>
+          <input matInput [matDatepicker]="deliveryPicker" formControlName="dueDate" />
+          <mat-datepicker-toggle matIconSuffix [for]="deliveryPicker"></mat-datepicker-toggle>
+          <mat-datepicker #deliveryPicker></mat-datepicker>
+          @if (deliveryForm.controls.dueDate.hasError('required')) {
+            <mat-error>Delivery Date is required.</mat-error>
           }
-        </form>
-      }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="notes-field">
+          <mat-label>Order Notes (Optional)</mat-label>
+          <textarea matInput rows="3" formControlName="notes"></textarea>
+        </mat-form-field>
+      </form>
     </mat-step>
 
     <mat-step label="Summary">
@@ -200,78 +169,53 @@
         <div><strong>Client ID:</strong> {{ summaryClientId() }}</div>
         <div><strong>Client Name:</strong> {{ summaryClientName() }}</div>
         <div><strong>Client Phone:</strong> {{ summaryClientPhone() }}</div>
-        <div><strong>Total Items:</strong> {{ totalItemsInOrder() }}</div>
-        <div><strong>Item Type:</strong> {{ selectedItemTypeName || 'N/A' }}</div>
-        @if (isOthersSelected()) {
-          <div><strong>Product Name:</strong> {{ orderForm.value.otherProductName || 'N/A' }}</div>
-        }
-        <div><strong>Quantity:</strong> {{ orderForm.value.quantity }}</div>
-        <div><strong>Color:</strong> {{ orderForm.value.color || 'Default' }}</div>
-        <div><strong>Material:</strong> {{ orderForm.value.material || 'Standard' }}</div>
+        <div><strong>Products Added:</strong> {{ addedProductMeasurements.length }}</div>
         <div>
           <strong>Delivery:</strong>
-          {{ orderForm.value.dueDate ? (orderForm.value.dueDate | date: 'mediumDate') : 'TBD' }}
+          {{ deliveryForm.value.dueDate ? (deliveryForm.value.dueDate | date: 'mediumDate') : 'TBD' }}
         </div>
         <div class="span-all">
-          <strong>Measurements:</strong>
-          @if (measurementModeForm.value.useCurrentMeasurements ?? true) {
-            Current client profile
-          } @else {
-            Manual input ({{ selectedTemplateFields.length }} possible fields)
-          }
+          <strong>Notes:</strong> {{ deliveryForm.value.notes || 'None' }}
         </div>
-        <div class="span-all">
-          <strong>Item Notes:</strong> {{ orderForm.value.itemNotes || 'None' }}
-        </div>
-        <div class="span-all">
-          <strong>Notes:</strong> {{ orderForm.value.notes || 'None' }}
-        </div>
-      </section>
 
-      @if (addedItems.length > 0) {
-        <section class="queued-items">
-          <h3>Items Added To This Order</h3>
-          @for (item of addedItems; track $index) {
-            <div class="queued-item-row">
-              <div>
-                <strong>{{ itemTypeName(item.itemTypeId) }}</strong>
-                <p class="queued-item-meta">
-                  Qty {{ item.quantity }} | {{ item.color || 'Default' }} | {{ item.material || 'Standard' }} |
-                  {{ itemMeasurementMode(item) }}
-                </p>
-                @if (item.otherProductName) {
-                  <p class="queued-item-meta">Product name: {{ item.otherProductName }}</p>
-                }
-                @if (item.itemNotes) {
-                  <p class="queued-item-meta">Item note: {{ item.itemNotes }}</p>
-                }
-              </div>
-              <button mat-stroked-button color="warn" type="button" (click)="removeAddedItem($index)">Remove</button>
-            </div>
-          }
-        </section>
-      }
-
-      <section class="current-item">
-        <h3>Current Item (Not Yet Added)</h3>
-        <p>
-          <strong>{{ selectedItemTypeName || 'N/A' }}</strong>
-          @if (orderForm.value.otherProductName) {
-            ({{ orderForm.value.otherProductName }})
-          }
-          |
-          Qty {{ orderForm.value.quantity }} |
-          {{ orderForm.value.color || 'Default' }} |
-          {{ orderForm.value.material || 'Standard' }} |
-          @if (measurementModeForm.value.useCurrentMeasurements ?? true) {
-            Current profile measurements
-          } @else {
-            Manual measurements
-          }
-          @if (orderForm.value.itemNotes) {
-            | Note: {{ orderForm.value.itemNotes }}
-          }
-        </p>
+        <div class="span-all summary-table-wrap">
+          <table class="summary-table" aria-label="Order items summary">
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Qty</th>
+                <th>Recorded Measurements</th>
+                <th>Other Details</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (product of addedProductMeasurements; track product.itemTypeId) {
+                <tr>
+                  <td>{{ product.itemTypeName }}</td>
+                  <td>1</td>
+                  <td>
+                    @if (!summaryMeasurementEntries(product).length) {
+                      <span class="summary-muted">No measurement values</span>
+                    } @else {
+                      @for (entry of summaryMeasurementEntries(product); track entry.key) {
+                        <div>{{ entry.label }}: {{ entry.value }}</div>
+                      }
+                    }
+                  </td>
+                  <td>
+                    @if (!summaryDetailEntries(product).length) {
+                      <span class="summary-muted">None</span>
+                    } @else {
+                      @for (entry of summaryDetailEntries(product); track entry.key) {
+                        <div>{{ entry.label }}: {{ entry.value }}</div>
+                      }
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
       </section>
     </mat-step>
   </mat-stepper>
@@ -281,7 +225,6 @@
     @if (!isOnSummaryStep()) {
       <button mat-flat-button color="primary" (click)="goNext()" [disabled]="!canGoNext()">Next</button>
     } @else {
-      <button mat-stroked-button type="button" (click)="addCurrentItem()" [disabled]="isSubmitting">Add Item</button>
       <button mat-flat-button color="primary" (click)="submitOrder()" [disabled]="isSubmitting">Submit Order</button>
     }
   </div>

@@ -1,15 +1,15 @@
 import { ChangeDetectorRef, Component, OnInit, ViewChild, inject } from '@angular/core';
 import { DatePipe } from '@angular/common';
-import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, ValidatorFn, Validators } from '@angular/forms';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
-import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatNativeDateModule } from '@angular/material/core';
+import { MatDialog } from '@angular/material/dialog';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
@@ -22,10 +22,19 @@ import { MeasurementsService } from '../../clients/measurements.service';
 import { ClientsService } from '../../clients/clients.service';
 import {
   CreateOrderPayload,
-  OrderItemTemplateField,
   OrderItemType,
   OrdersService
 } from '../orders.service';
+import { ProductMeasurementsDialogComponent } from './product-measurements-dialog.component';
+
+type ProductMeasurementRow = {
+  itemTypeId: number;
+  itemTypeName: string;
+  useCurrentMeasurements: boolean;
+  color: string | null;
+  material: string | null;
+  values: Array<{ key: string; label: string; value: number | string }>;
+};
 
 @Component({
   selector: 'app-order-wizard',
@@ -33,7 +42,6 @@ import {
     ReactiveFormsModule,
     MatButtonModule,
     MatCardModule,
-    MatCheckboxModule,
     MatDatepickerModule,
     MatFormFieldModule,
     MatInputModule,
@@ -53,6 +61,7 @@ export class OrderWizardComponent implements OnInit {
   @ViewChild('stepper') stepper!: MatStepper;
 
   private readonly fb = inject(FormBuilder);
+  private readonly dialog = inject(MatDialog);
   private readonly snackBar = inject(MatSnackBar);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -64,7 +73,6 @@ export class OrderWizardComponent implements OnInit {
   protected currentStep = 0;
   protected isSubmitting = false;
   protected isLoadingItemTypes = false;
-  protected isLoadingTemplate = false;
   protected isLoadingClientProfile = false;
   protected isLoadingClients = false;
   protected isCreatingClient = false;
@@ -75,11 +83,10 @@ export class OrderWizardComponent implements OnInit {
   protected clients: Array<{ id: number; fullName: string; phone: string; notes: string | null }> = [];
   protected filteredClients: Array<{ id: number; fullName: string; phone: string; notes: string | null }> = [];
   protected clientSearchTerm = '';
-  protected selectedItemTypeName = '';
-  protected selectedTemplateFields: OrderItemTemplateField[] = [];
   protected clientProfileMeasurementsByItemType: Record<number, Record<string, number>> = {};
-  protected carriedMeasurementsByItemType: Record<number, Record<string, number>> = {};
-  protected addedItems: CreateOrderPayload['items'] = [];
+  protected clientProfileAllValuesByItemType: Record<number, Record<string, number | string>> = {};
+  protected draftMeasurementsByItemType: Record<number, Record<string, number | string>> = {};
+  protected addedProductMeasurements: ProductMeasurementRow[] = [];
 
   protected readonly clientForm = this.fb.group({
     clientId: [null as number | null, Validators.required],
@@ -92,22 +99,10 @@ export class OrderWizardComponent implements OnInit {
     notes: ['']
   });
 
-  protected readonly orderForm = this.fb.group({
-    itemTypeId: [null as number | null, Validators.required],
-    quantity: [1, [Validators.required, Validators.min(1)]],
-    color: [''],
-    material: [''],
-    itemNotes: [''],
-    otherProductName: [''],
+  protected readonly deliveryForm = this.fb.group({
     dueDate: [null as Date | null, Validators.required],
     notes: ['']
   });
-
-  protected readonly measurementModeForm = this.fb.group({
-    useCurrentMeasurements: [true]
-  });
-
-  protected readonly measurementForm = this.fb.group({});
 
   ngOnInit(): void {
     const scopedClientId = Number(this.route.snapshot.queryParamMap.get('clientId'));
@@ -137,8 +132,9 @@ export class OrderWizardComponent implements OnInit {
           { emitEvent: false }
         );
         this.clientProfileMeasurementsByItemType = {};
-        this.carriedMeasurementsByItemType = {};
-        this.applyProfileValuesToMeasurementForm();
+        this.clientProfileAllValuesByItemType = {};
+        this.draftMeasurementsByItemType = {};
+        this.addedProductMeasurements = [];
         return;
       }
 
@@ -156,29 +152,9 @@ export class OrderWizardComponent implements OnInit {
       );
       this.clientSearchTerm = '';
       this.filterClients('');
-      this.carriedMeasurementsByItemType = {};
+      this.draftMeasurementsByItemType = {};
+      this.addedProductMeasurements = [];
       this.loadClientProfile(selectedClient.id);
-    });
-
-    this.orderForm.controls.itemTypeId.valueChanges.subscribe((itemTypeId) => {
-      if (!itemTypeId) {
-        this.selectedItemTypeName = '';
-        this.configureOtherProductNameValidation();
-        this.selectedTemplateFields = [];
-        this.resetMeasurementForm();
-        return;
-      }
-
-      const match = this.itemTypes.find((itemType) => itemType.id === itemTypeId);
-      this.selectedItemTypeName = match?.name ?? '';
-      this.configureOtherProductNameValidation();
-      this.loadTemplateFields(itemTypeId);
-    });
-
-    this.measurementModeForm.controls.useCurrentMeasurements.valueChanges.subscribe((useCurrent) => {
-      if (useCurrent) {
-        this.applyProfileValuesToMeasurementForm();
-      }
     });
   }
 
@@ -217,15 +193,19 @@ export class OrderWizardComponent implements OnInit {
       return;
     }
 
+    if (this.addedProductMeasurements.length === 0) {
+      this.snackBar.open('Add at least one product.', 'Close', { duration: 2500 });
+      return;
+    }
+
     this.isSubmitting = true;
-    const currentItem = this.buildOrderItemPayload();
 
     const payload: CreateOrderPayload = {
       clientId,
       status: 'PLACED',
-      dueDate: this.orderForm.value.dueDate?.toISOString(),
-      notes: this.orderForm.value.notes?.trim() || null,
-      items: [...this.addedItems, currentItem]
+      dueDate: this.deliveryForm.value.dueDate?.toISOString(),
+      notes: this.deliveryForm.value.notes?.trim() || null,
+      items: this.buildOrderItemsFromAddedProducts()
     };
 
     this.ordersService
@@ -251,51 +231,6 @@ export class OrderWizardComponent implements OnInit {
       });
   }
 
-  protected addCurrentItem(): void {
-    if (!this.validateBeforeSubmit()) {
-      return;
-    }
-
-    const itemPayload = this.buildOrderItemPayload();
-    this.addedItems = [...this.addedItems, itemPayload];
-    this.captureCarriedMeasurements(itemPayload);
-    this.snackBar.open('Item added to order. Configure the next item.', 'Close', { duration: 2000 });
-    this.prepareForNextItem();
-  }
-
-  protected removeAddedItem(index: number): void {
-    this.addedItems = this.addedItems.filter((_, i) => i !== index);
-    this.rebuildCarriedMeasurements();
-  }
-
-  protected totalItemsInOrder(): number {
-    return this.addedItems.length + 1;
-  }
-
-  protected itemTypeName(itemTypeId: number): string {
-    return this.itemTypes.find((itemType) => itemType.id === itemTypeId)?.name ?? 'N/A';
-  }
-
-  protected itemMeasurementMode(item: CreateOrderPayload['items'][number]): string {
-    if (item.useCurrentMeasurements) {
-      return 'Current profile measurements';
-    }
-    return 'Manual measurements';
-  }
-
-  protected measurementFieldLabel(field: OrderItemTemplateField): string {
-    return `${field.label}${field.required ? ' *' : ''}`;
-  }
-
-  protected isMeasurementFieldReadOnly(field: OrderItemTemplateField): boolean {
-    const useCurrent = this.measurementModeForm.value.useCurrentMeasurements ?? true;
-    if (!useCurrent) {
-      return false;
-    }
-
-    return this.hasProfileValue(field.key);
-  }
-
   protected summaryClientId(): string {
     const id = this.resolveClientId();
     return id === null ? 'N/A' : String(id);
@@ -309,10 +244,32 @@ export class OrderWizardComponent implements OnInit {
     return this.clientForm.getRawValue().phone?.trim() || 'N/A';
   }
 
+  protected summaryMeasurementEntries(product: ProductMeasurementRow): Array<{ key: string; label: string; value: number | string }> {
+    return product.values.filter((entry) => this.isMeasurementValue(entry.value));
+  }
+
+  protected summaryDetailEntries(product: ProductMeasurementRow): Array<{ key: string; label: string; value: number | string }> {
+    const details: Array<{ key: string; label: string; value: number | string }> = [];
+    if (product.color) {
+      details.push({ key: 'color', label: 'Color', value: product.color });
+    }
+    if (product.material) {
+      details.push({ key: 'material', label: 'Material', value: product.material });
+    }
+
+    for (const entry of product.values) {
+      if (!this.isMeasurementValue(entry.value)) {
+        details.push(entry);
+      }
+    }
+
+    return details;
+  }
+
   protected canGoNext(): boolean {
     const clientStepIndex = 0;
-    const orderStepIndex = 1;
-    const measurementStepIndex = 2;
+    const productsStepIndex = 1;
+    const deliveryStepIndex = 2;
 
     if (this.isSubmitting || this.isLoadingClients || this.isCreatingClient) {
       return false;
@@ -322,18 +279,15 @@ export class OrderWizardComponent implements OnInit {
       return this.clientForm.valid;
     }
 
-    if (this.currentStep === orderStepIndex) {
+    if (this.currentStep === productsStepIndex) {
       if (this.isLoadingItemTypes) {
         return false;
       }
-      return this.orderForm.valid;
+      return this.addedProductMeasurements.length > 0;
     }
 
-    if (this.currentStep === measurementStepIndex) {
-      if (this.isLoadingTemplate || this.isLoadingClientProfile) {
-        return false;
-      }
-      return this.areRequiredMeasurementsSatisfied();
+    if (this.currentStep === deliveryStepIndex) {
+      return this.deliveryForm.valid;
     }
 
     return false;
@@ -355,7 +309,6 @@ export class OrderWizardComponent implements OnInit {
       )
       .subscribe((itemTypes) => {
         this.itemTypes = itemTypes;
-        this.configureOtherProductNameValidation();
       });
   }
 
@@ -455,8 +408,9 @@ export class OrderWizardComponent implements OnInit {
       { emitEvent: false }
     );
     this.clientProfileMeasurementsByItemType = {};
-    this.carriedMeasurementsByItemType = {};
-    this.applyProfileValuesToMeasurementForm();
+    this.clientProfileAllValuesByItemType = {};
+    this.draftMeasurementsByItemType = {};
+    this.addedProductMeasurements = [];
   }
 
   protected cancelNewClientForm(): void {
@@ -529,39 +483,6 @@ export class OrderWizardComponent implements OnInit {
     return message.includes('unique') || message.includes('phone');
   }
 
-  private loadTemplateFields(itemTypeId: number): void {
-    this.isLoadingTemplate = true;
-    this.resetMeasurementForm();
-
-    this.ordersService
-      .getItemTypeTemplate(itemTypeId)
-      .pipe(
-        catchError(() => {
-          this.snackBar.open('Could not load measurement template.', 'Close', { duration: 2500 });
-          return of([]);
-        }),
-        finalize(() => {
-          this.isLoadingTemplate = false;
-        })
-      )
-      .subscribe((fields) => {
-        this.selectedTemplateFields = fields.filter((field) => field.type === 'number');
-        const useCurrent = this.measurementModeForm.value.useCurrentMeasurements ?? true;
-        const sourceValues = useCurrent ? this.currentMeasurementSourceValues(itemTypeId) : {};
-
-        for (const field of this.selectedTemplateFields) {
-          const value = field.key in sourceValues ? sourceValues[field.key] : null;
-          this.measurementForm.addControl(field.key, this.fb.control<number | null>(value));
-        }
-      });
-  }
-
-  private resetMeasurementForm(): void {
-    for (const key of Object.keys(this.measurementForm.controls)) {
-      this.measurementForm.removeControl(key);
-    }
-  }
-
   private canProceedFromCurrentStep(): boolean {
     if (this.canGoNext()) {
       return true;
@@ -570,9 +491,9 @@ export class OrderWizardComponent implements OnInit {
     if (this.currentStep === 0) {
       this.clientForm.markAllAsTouched();
     } else if (this.currentStep === 1) {
-      this.orderForm.markAllAsTouched();
+      return false;
     } else if (this.currentStep === 2) {
-      this.measurementForm.markAllAsTouched();
+      this.deliveryForm.markAllAsTouched();
     }
 
     return false;
@@ -584,40 +505,41 @@ export class OrderWizardComponent implements OnInit {
       return false;
     }
 
-    if (this.orderForm.invalid) {
-      this.orderForm.markAllAsTouched();
+    if (this.deliveryForm.controls.dueDate.invalid) {
+      this.deliveryForm.markAllAsTouched();
       return false;
     }
 
-    if (this.measurementModeForm.invalid) {
-      this.measurementModeForm.markAllAsTouched();
+    if (this.addedProductMeasurements.length === 0) {
       return false;
     }
 
     return true;
   }
 
-  private prepareForNextItem(): void {
-    const dueDate = this.orderForm.getRawValue().dueDate;
-    const notes = this.orderForm.getRawValue().notes ?? '';
+  private buildOrderItemsFromAddedProducts(): CreateOrderPayload['items'] {
+    return this.addedProductMeasurements.map((product) => {
+      const values =
+        this.draftMeasurementsByItemType[product.itemTypeId] ??
+        this.clientProfileAllValuesByItemType[product.itemTypeId] ??
+        {};
+      const measurementsInput = this.toOrderMeasurementInput(values);
+      const isOthers = product.itemTypeName.trim().toLowerCase() === 'others';
+      const productName =
+        isOthers && typeof values['productName'] === 'string' ? values['productName'].trim() : '';
+      const notes = isOthers && typeof values['notes'] === 'string' ? values['notes'].trim() : '';
 
-    this.orderForm.reset({
-      itemTypeId: null,
-      quantity: 1,
-      color: '',
-      material: '',
-      itemNotes: '',
-      otherProductName: '',
-      dueDate,
-      notes
+      return {
+        itemTypeId: product.itemTypeId,
+        quantity: 1,
+        ...(product.color ? { color: product.color } : {}),
+        ...(product.material ? { material: product.material } : {}),
+        useCurrentMeasurements: measurementsInput ? product.useCurrentMeasurements : true,
+        ...(measurementsInput ? { measurementsInput } : {}),
+        ...(productName ? { otherProductName: productName } : {}),
+        ...(notes ? { itemNotes: notes } : {})
+      };
     });
-    this.measurementModeForm.patchValue({ useCurrentMeasurements: true });
-    this.selectedItemTypeName = '';
-    this.selectedTemplateFields = [];
-    this.resetMeasurementForm();
-
-    this.currentStep = 1;
-    this.stepper.selectedIndex = 1;
   }
 
   private resolveClientId(): number | null {
@@ -667,7 +589,9 @@ export class OrderWizardComponent implements OnInit {
       )
       .subscribe((profile) => {
         const valuesByItemType: Record<number, Record<string, number>> = {};
+        const allValuesByItemType: Record<number, Record<string, number | string>> = {};
         for (const product of profile?.products ?? []) {
+          allValuesByItemType[product.itemTypeId] = product.values ?? {};
           const numericValues = Object.entries(product.values ?? {}).reduce<Record<string, number>>((acc, [key, value]) => {
             const numeric = Number(value);
             if (Number.isFinite(numeric)) {
@@ -678,219 +602,143 @@ export class OrderWizardComponent implements OnInit {
           valuesByItemType[product.itemTypeId] = numericValues;
         }
         this.clientProfileMeasurementsByItemType = valuesByItemType;
-        this.applyProfileValuesToMeasurementForm();
+        this.clientProfileAllValuesByItemType = allValuesByItemType;
       });
   }
 
-  private applyProfileValuesToMeasurementForm(): void {
-    if (Object.keys(this.measurementForm.controls).length === 0) {
+  protected openAddProductDialog(itemTypeId?: number): void {
+    const clientId = this.resolveClientId();
+    if (!clientId) {
+      this.snackBar.open('Select a client first.', 'Close', { duration: 2500 });
       return;
     }
 
-    const selectedItemTypeId = this.orderForm.value.itemTypeId ?? null;
-    if (!selectedItemTypeId) {
-      return;
-    }
-
-    const sourceValues = this.currentMeasurementSourceValues(selectedItemTypeId);
-    const patch: Record<string, number | null> = {};
-
-    for (const field of this.selectedTemplateFields) {
-      patch[field.key] =
-        field.key in sourceValues ? sourceValues[field.key] : null;
-    }
-
-    this.measurementForm.patchValue(patch);
-  }
-
-  private currentMeasurementSourceValues(itemTypeId: number): Record<string, number> {
-    return {
-      ...(this.clientProfileMeasurementsByItemType[itemTypeId] ?? {}),
-      ...(this.carriedMeasurementsByItemType[itemTypeId] ?? {})
-    };
-  }
-
-  private captureCarriedMeasurements(itemPayload: CreateOrderPayload['items'][number]): void {
-    const itemTypeId = itemPayload.itemTypeId;
-    const values = itemPayload.measurementsInput ?? {};
-    if (Object.keys(values).length === 0) {
-      return;
-    }
-
-    const existingValues = this.carriedMeasurementsByItemType[itemTypeId] ?? {};
-    this.carriedMeasurementsByItemType = {
-      ...this.carriedMeasurementsByItemType,
-      [itemTypeId]: {
-        ...existingValues,
-        ...values
+    const hasSpecificProduct = typeof itemTypeId === 'number' && Number.isInteger(itemTypeId) && itemTypeId > 0;
+    const dialogRef = this.dialog.open(ProductMeasurementsDialogComponent, {
+      width: '820px',
+      maxWidth: '95vw',
+      data: {
+        itemTypes: this.itemTypes,
+        profileValuesByItemType: {
+          ...this.clientProfileAllValuesByItemType,
+          ...this.draftMeasurementsByItemType
+        },
+        initialItemTypeId: hasSpecificProduct ? itemTypeId : null,
+        initialOrderDetailsByItemType: this.addedProductMeasurements.reduce<
+          Record<number, { color?: string | null; material?: string | null }>
+        >((acc, product) => {
+          acc[product.itemTypeId] = {
+            color: product.color,
+            material: product.material
+          };
+          return acc;
+        }, {}),
+        lockItemTypeSelection: hasSpecificProduct
       }
-    };
-  }
+    });
 
-  private rebuildCarriedMeasurements(): void {
-    const rebuilt: Record<number, Record<string, number>> = {};
-
-    for (const item of this.addedItems) {
-      const values = item.measurementsInput ?? {};
-      if (Object.keys(values).length === 0) {
-        continue;
+    dialogRef.afterClosed().subscribe((saved) => {
+      if (!saved) {
+        return;
       }
-      rebuilt[item.itemTypeId] = {
-        ...(rebuilt[item.itemTypeId] ?? {}),
-        ...values
+
+      const allValues = saved.values ?? {};
+      this.draftMeasurementsByItemType = {
+        ...this.draftMeasurementsByItemType,
+        [saved.itemTypeId]: allValues
       };
-    }
+      this.clientProfileAllValuesByItemType = {
+        ...this.clientProfileAllValuesByItemType,
+        [saved.itemTypeId]: allValues
+      };
 
-    this.carriedMeasurementsByItemType = rebuilt;
-  }
+      const numericValues = Object.entries(allValues).reduce<Record<string, number>>((acc, [key, value]) => {
+        const numeric = Number(value);
+        if (Number.isFinite(numeric)) {
+          acc[key] = numeric;
+        }
+        return acc;
+      }, {});
+      this.clientProfileMeasurementsByItemType = {
+        ...this.clientProfileMeasurementsByItemType,
+        [saved.itemTypeId]: numericValues
+      };
 
-  private areRequiredMeasurementsSatisfied(): boolean {
-    for (const field of this.selectedTemplateFields) {
-      if (!field.required) {
-        continue;
+      const valueRows = (saved.fields ?? [])
+        .map((field: { key: string; label: string }) => {
+          const value = allValues[field.key];
+          if (value === null || value === undefined || value === '') {
+            return null;
+          }
+          return {
+            key: field.key,
+            label: field.label,
+            value
+          };
+        })
+        .filter((row: { key: string; label: string; value: number | string } | null): row is { key: string; label: string; value: number | string } => Boolean(row));
+
+      const row: ProductMeasurementRow = {
+        itemTypeId: saved.itemTypeId,
+        itemTypeName: saved.itemTypeName,
+        useCurrentMeasurements: saved.useCurrentMeasurements,
+        color: this.cleanOptionalText(saved.color),
+        material: this.cleanOptionalText(saved.material),
+        values: valueRows
+      };
+
+      const existingIndex = this.addedProductMeasurements.findIndex((entry) => entry.itemTypeId === row.itemTypeId);
+      if (existingIndex >= 0) {
+        const next = [...this.addedProductMeasurements];
+        next[existingIndex] = row;
+        this.addedProductMeasurements = next;
+      } else {
+        this.addedProductMeasurements = [...this.addedProductMeasurements, row];
       }
 
-      const raw = this.measurementForm.get(field.key)?.value;
-      if (raw === null || raw === undefined || raw === '') {
+      this.snackBar.open('Product measurements updated in this order draft.', 'Close', { duration: 2000 });
+      this.cdr.detectChanges();
+    });
+  }
+
+  protected editProductMeasurements(itemTypeId: number): void {
+    this.openAddProductDialog(itemTypeId);
+  }
+
+  private toOrderMeasurementInput(values: Record<string, number | string>): Record<string, number | string> | undefined {
+    const entries = Object.entries(values).filter(([, value]) => {
+      if (value === null || value === undefined) {
         return false;
       }
-
-      const numeric = Number(raw);
-      if (!Number.isFinite(numeric)) {
-        return false;
+      if (typeof value === 'string') {
+        return value.trim().length > 0;
       }
+      return Number.isFinite(Number(value));
+    });
+
+    if (entries.length === 0) {
+      return undefined;
     }
 
-    return true;
+    return Object.fromEntries(entries);
   }
 
-  private buildOrderItemPayload(): CreateOrderPayload['items'][number] {
-    const useCurrent = this.measurementModeForm.value.useCurrentMeasurements ?? true;
-    const itemTypeId = this.orderForm.value.itemTypeId ?? 0;
-    const quantity = Number(this.orderForm.value.quantity ?? 1);
-    const color = this.orderForm.value.color?.trim() ?? '';
-    const material = this.orderForm.value.material?.trim() ?? '';
-    const itemNotes = this.orderForm.value.itemNotes?.trim() || null;
-    const otherProductName = this.orderForm.value.otherProductName?.trim() || null;
-
-    if (useCurrent) {
-      const additions = this.toProfileFillInsInput();
-      const hasAdditions = Object.keys(additions).length > 0;
-
-      return {
-        itemTypeId,
-        quantity,
-        color,
-        material,
-        itemNotes,
-        otherProductName,
-        useCurrentMeasurements: true,
-        ...(hasAdditions ? { measurementsInput: additions } : {})
-      };
+  private isMeasurementValue(value: number | string): boolean {
+    if (typeof value === 'number') {
+      return Number.isFinite(value);
     }
 
-    return {
-      itemTypeId,
-      quantity,
-      color,
-      material,
-      itemNotes,
-      otherProductName,
-      useCurrentMeasurements: false,
-      measurementsInput: this.toMeasurementInput()
-    };
-  }
-
-  protected isOthersSelected(): boolean {
-    const selectedItemTypeId = this.orderForm.value.itemTypeId ?? null;
-    if (!selectedItemTypeId) {
+    const trimmed = value.trim();
+    if (!trimmed.length) {
       return false;
     }
 
-    const selectedItemType = this.itemTypes.find((itemType) => itemType.id === selectedItemTypeId);
-    return selectedItemType?.name.trim().toLowerCase() === 'others';
+    return Number.isFinite(Number(trimmed));
   }
 
-  private configureOtherProductNameValidation(): void {
-    const control = this.orderForm.controls.otherProductName;
-    if (!this.isOthersSelected()) {
-      control.clearValidators();
-      control.setValue('', { emitEvent: false });
-      control.updateValueAndValidity({ emitEvent: false });
-      return;
-    }
-
-    control.setValidators([Validators.required, this.otherProductNameExistsValidator()]);
-    control.updateValueAndValidity({ emitEvent: false });
-  }
-
-  private otherProductNameExistsValidator(): ValidatorFn {
-    return (control: AbstractControl): ValidationErrors | null => {
-      const raw = String(control.value ?? '').trim();
-      if (!raw) {
-        return null;
-      }
-
-      const exists = this.itemTypes.some(
-        (itemType) => itemType.name.trim().toLowerCase() === raw.toLowerCase()
-      );
-
-      return exists ? { productExists: true } : null;
-    };
-  }
-
-  private toMeasurementInput(): Record<string, number> {
-    const values: Record<string, number> = {};
-
-    for (const field of this.selectedTemplateFields) {
-      const raw = this.measurementForm.get(field.key)?.value;
-      if (raw === null || raw === undefined || raw === '') {
-        continue;
-      }
-
-      const numeric = Number(raw);
-      if (!Number.isFinite(numeric)) {
-        continue;
-      }
-
-      values[field.key] = numeric;
-    }
-
-    return values;
-  }
-
-  private toProfileFillInsInput(): Record<string, number> {
-    const values: Record<string, number> = {};
-
-    for (const field of this.selectedTemplateFields) {
-      if (this.hasProfileValue(field.key)) {
-        continue;
-      }
-
-      const raw = this.measurementForm.get(field.key)?.value;
-      if (raw === null || raw === undefined || raw === '') {
-        continue;
-      }
-
-      const numeric = Number(raw);
-      if (!Number.isFinite(numeric)) {
-        continue;
-      }
-
-      values[field.key] = numeric;
-    }
-
-    return values;
-  }
-
-  private hasProfileValue(fieldKey: string): boolean {
-    const selectedItemTypeId = this.orderForm.value.itemTypeId ?? null;
-    if (!selectedItemTypeId) {
-      return false;
-    }
-    const sourceValues = this.currentMeasurementSourceValues(selectedItemTypeId);
-    const value = sourceValues[fieldKey];
-    return value !== null && value !== undefined && Number.isFinite(Number(value));
+  private cleanOptionalText(value: unknown): string | null {
+    const trimmed = typeof value === 'string' ? value.trim() : '';
+    return trimmed.length ? trimmed : null;
   }
 
   private toMissingMeasurementsMessage(err: HttpErrorResponse): string | null {
