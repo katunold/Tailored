@@ -523,11 +523,11 @@ export class OrderWizardComponent implements OnInit {
         this.draftMeasurementsByItemType[product.itemTypeId] ??
         this.clientProfileAllValuesByItemType[product.itemTypeId] ??
         {};
-      const measurementsInput = this.toOrderMeasurementInput(values);
+      const measurementsInput = this.toOrderMeasurementInput(values, ['notes']);
       const isOthers = product.itemTypeName.trim().toLowerCase() === 'others';
       const productName =
         isOthers && typeof values['productName'] === 'string' ? values['productName'].trim() : '';
-      const notes = isOthers && typeof values['notes'] === 'string' ? values['notes'].trim() : '';
+      const notes = typeof values['notes'] === 'string' ? values['notes'].trim() : '';
 
       return {
         itemTypeId: product.itemTypeId,
@@ -705,8 +705,16 @@ export class OrderWizardComponent implements OnInit {
     this.openAddProductDialog(itemTypeId);
   }
 
-  private toOrderMeasurementInput(values: Record<string, number | string>): Record<string, number | string> | undefined {
-    const entries = Object.entries(values).filter(([, value]) => {
+  private toOrderMeasurementInput(
+    values: Record<string, number | string>,
+    excludedKeys: string[] = []
+  ): Record<string, number | string> | undefined {
+    const excluded = new Set(excludedKeys.map((key) => key.trim()).filter((key) => key.length > 0));
+
+    const entries = Object.entries(values).filter(([key, value]) => {
+      if (excluded.has(key)) {
+        return false;
+      }
       if (value === null || value === undefined) {
         return false;
       }

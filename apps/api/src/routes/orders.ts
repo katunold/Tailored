@@ -59,6 +59,7 @@ export function ordersRouter(ctx: AppContext) {
     const items = order.items.map((i: any) => ({
       ...i,
       measurementSnapshot: JSON.parse(i.measurementSnapshotJson),
+      notes: cleanText(i.notes),
     }));
 
     res.json({ ...order, items });
