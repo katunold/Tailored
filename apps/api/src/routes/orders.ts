@@ -125,7 +125,7 @@ export function ordersRouter(ctx: AppContext) {
       where: { clientId: dto.clientId, itemTypeId: { in: itemTypeIds } },
       select: { itemTypeId: true, valuesJson: true },
     });
-    const baseValuesByType = new Map<number, Record<string, number>>();
+    const baseValuesByType = new Map<number, Record<string, number | string>>();
     for (const row of currentRows) {
       let parsed: unknown;
       try {
@@ -134,12 +134,12 @@ export function ordersRouter(ctx: AppContext) {
         parsed = {};
       }
       const values = parsed && typeof parsed === "object" && !Array.isArray(parsed)
-        ? (parsed as Record<string, number>)
+        ? (parsed as Record<string, number | string>)
         : {};
       baseValuesByType.set(row.itemTypeId, values);
     }
 
-    const workingValuesByType = new Map<number, Record<string, number>>(baseValuesByType);
+    const workingValuesByType = new Map<number, Record<string, number | string>>(baseValuesByType);
     const missingByItem: Array<{ itemTypeId: number; missingFields: string[] }> = [];
 
     for (const item of dto.items) {
@@ -188,7 +188,7 @@ export function ordersRouter(ctx: AppContext) {
         },
       });
 
-      const updatedValuesByType = new Map<number, Record<string, number>>(baseValuesByType);
+      const updatedValuesByType = new Map<number, Record<string, number | string>>(baseValuesByType);
 
       // For each item, resolve measurements + snapshot + defaults
       for (const item of dto.items) {
