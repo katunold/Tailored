@@ -9,6 +9,11 @@ let apiProcess: ChildProcess | null = null;
 let apiServer: HttpServer | null = null;
 let apiPrisma: { $disconnect: () => Promise<void> } | null = null;
 
+// Show the branded app name in desktop UI while keeping a stable persisted
+// runtime database path across development and packaged builds.
+app.setName('Tailored');
+app.setPath('userData', path.join(app.getPath('appData'), 'tailor-desktop'));
+
 // Linux GPU/VSync warnings are noisy in some desktop environments and are not
 // critical for this UI. Keep rendering path stable and quiet for dev/runtime.
 if (process.platform === 'linux') {
