@@ -119,11 +119,11 @@
             <p class="queued-item-meta">No product measurements added yet.</p>
           } @else {
             <div class="product-measurements-grid">
-              @for (product of addedProductMeasurements; track product.itemTypeId) {
+              @for (product of addedProductMeasurements; track product.rowId) {
                 <mat-card appearance="outlined" class="product-measurement-card">
                   <div class="product-measurement-card-header">
                     <h4>{{ product.itemTypeName }}</h4>
-                    <button mat-stroked-button type="button" (click)="editProductMeasurements(product.itemTypeId)">Edit</button>
+                    <button mat-stroked-button type="button" (click)="editProductMeasurements(product.rowId)">Edit</button>
                   </div>
                   @if (product.values.length === 0) {
                     <p class="queued-item-meta">No values recorded.</p>
@@ -157,6 +157,32 @@
           }
         </mat-form-field>
 
+        <mat-form-field appearance="outline">
+          <mat-label>Received By</mat-label>
+          <input matInput formControlName="receivedBy" [matAutocomplete]="receivedByAuto" />
+          <mat-autocomplete #receivedByAuto="matAutocomplete" autoActiveFirstOption>
+            @for (option of filteredReceivedBySuggestions(); track option) {
+              <mat-option [value]="option">{{ option }}</mat-option>
+            }
+          </mat-autocomplete>
+          @if (deliveryForm.controls.receivedBy.hasError('required')) {
+            <mat-error>Received By is required.</mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Assigned To</mat-label>
+          <input matInput formControlName="assignedTo" [matAutocomplete]="assignedToAuto" />
+          <mat-autocomplete #assignedToAuto="matAutocomplete" autoActiveFirstOption>
+            @for (option of filteredAssignedToSuggestions(); track option) {
+              <mat-option [value]="option">{{ option }}</mat-option>
+            }
+          </mat-autocomplete>
+          @if (deliveryForm.controls.assignedTo.hasError('required')) {
+            <mat-error>Assigned To is required.</mat-error>
+          }
+        </mat-form-field>
+
         <mat-form-field appearance="outline" class="notes-field">
           <mat-label>Order Notes (Optional)</mat-label>
           <textarea matInput rows="3" formControlName="notes"></textarea>
@@ -174,6 +200,8 @@
           <strong>Delivery:</strong>
           {{ deliveryForm.value.dueDate ? (deliveryForm.value.dueDate | date: 'mediumDate') : 'TBD' }}
         </div>
+        <div><strong>Received By:</strong> {{ deliveryForm.value.receivedBy || 'N/A' }}</div>
+        <div><strong>Assigned To:</strong> {{ deliveryForm.value.assignedTo || 'N/A' }}</div>
         <div class="span-all">
           <strong>Notes:</strong> {{ deliveryForm.value.notes || 'None' }}
         </div>
@@ -189,7 +217,7 @@
               </tr>
             </thead>
             <tbody>
-              @for (product of addedProductMeasurements; track product.itemTypeId) {
+              @for (product of addedProductMeasurements; track product.rowId) {
                 <tr>
                   <td>{{ product.itemTypeName }}</td>
                   <td>1</td>

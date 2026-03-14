@@ -15,6 +15,8 @@ import { OrderItemType } from '../orders.service';
 type DialogData = {
   itemTypes: OrderItemType[];
   profileValuesByItemType: Record<number, Record<string, number | string>>;
+  draftValuesByItemType?: Record<number, Record<string, number | string>>;
+  initialUseCurrentMeasurementsByItemType?: Record<number, boolean>;
   initialOrderDetailsByItemType?: Record<number, { color?: string | null; material?: string | null }>;
   initialItemTypeId?: number | null;
   lockItemTypeSelection?: boolean;
@@ -88,9 +90,17 @@ export type ProductMeasurementsDialogResult = {
               <mat-form-field appearance="outline" [class.span-all]="field.type === 'text'">
                 <mat-label>{{ field.label }}{{ field.required ? ' *' : '' }}</mat-label>
                 @if (field.type === 'text') {
-                  <textarea matInput rows="3" [formControlName]="field.key"></textarea>
+                  <textarea
+                    matInput
+                    rows="3"
+                    [formControlName]="field.key"
+                    [readonly]="isUsingCurrentMeasurements"></textarea>
                 } @else {
-                  <input matInput type="number" [formControlName]="field.key" />
+                  <input
+                    matInput
+                    type="number"
+                    [formControlName]="field.key"
+                    [readonly]="isUsingCurrentMeasurements" />
                 }
                 @if (measurementForm.get(field.key)?.hasError('required')) {
                   <mat-error>{{ field.label }} is required.</mat-error>
@@ -157,6 +167,7 @@ export class ProductMeasurementsDialogComponent implements OnInit {
   private initialSnapshot: Record<string, number | string | null> = {};
   private initialColor = '';
   private initialMaterial = '';
+  private initialUseCurrentMeasurements = true;
   private currentProfileValues: Record<string, number | string> = {};
 
   constructor(@Inject(MAT_DIALOG_DATA) protected readonly data: DialogData) {}
@@ -178,6 +189,7 @@ export class ProductMeasurementsDialogComponent implements OnInit {
       if (useCurrent) {
         this.patchFromProfileValues();
       }
+      this.syncMeasurementControlsState();
     });
 
     if (this.data.initialItemTypeId && this.data.initialItemTypeId > 0) {
@@ -187,6 +199,10 @@ export class ProductMeasurementsDialogComponent implements OnInit {
 
   protected close(): void {
     this.dialogRef.close(null);
+  }
+
+  protected get isUsingCurrentMeasurements(): boolean {
+    return this.measurementModeForm.controls.useCurrentMeasurements.value !== false;
   }
 
   protected reset(): void {
@@ -200,7 +216,12 @@ export class ProductMeasurementsDialogComponent implements OnInit {
       },
       { emitEvent: false }
     );
+    this.measurementModeForm.patchValue(
+      { useCurrentMeasurements: this.initialUseCurrentMeasurements },
+      { emitEvent: false }
+    );
     this.measurementForm.patchValue(this.initialSnapshot);
+    this.syncMeasurementControlsState();
     this.measurementForm.markAsPristine();
     this.measurementForm.markAsUntouched();
   }
@@ -272,6 +293,7 @@ export class ProductMeasurementsDialogComponent implements OnInit {
       )
       .subscribe((fields) => {
         const initialOrderDetails = this.data.initialOrderDetailsByItemType?.[itemTypeId] ?? {};
+        const draftValues = this.data.draftValuesByItemType?.[itemTypeId] ?? {};
         this.initialColor = this.cleanOptionalText(initialOrderDetails.color) ?? '';
         this.initialMaterial = this.cleanOptionalText(initialOrderDetails.material) ?? '';
         this.headerForm.patchValue(
@@ -284,12 +306,15 @@ export class ProductMeasurementsDialogComponent implements OnInit {
 
         this.fields = fields;
         const hasRecordedValues = Object.keys(this.currentProfileValues).length > 0;
+        const useCurrentMeasurements =
+          this.data.initialUseCurrentMeasurementsByItemType?.[itemTypeId] ?? hasRecordedValues;
         this.measurementModeForm.patchValue(
-          { useCurrentMeasurements: hasRecordedValues },
+          { useCurrentMeasurements },
           { emitEvent: false }
         );
+        this.initialUseCurrentMeasurements = useCurrentMeasurements;
 
-        const sourceValues = hasRecordedValues ? this.currentProfileValues : {};
+        const sourceValues = useCurrentMeasurements ? this.currentProfileValues : draftValues;
         for (const field of this.fields) {
           const value = field.key in sourceValues ? sourceValues[field.key] : null;
           this.measurementForm.addControl(
@@ -298,6 +323,7 @@ export class ProductMeasurementsDialogComponent implements OnInit {
           );
         }
 
+        this.syncMeasurementControlsState();
         this.captureInitialSnapshot();
       });
   }
@@ -318,6 +344,19 @@ export class ProductMeasurementsDialogComponent implements OnInit {
     for (const key of Object.keys(this.measurementForm.controls)) {
       this.measurementForm.removeControl(key);
     }
+  }
+
+  private syncMeasurementControlsState(): void {
+    if (Object.keys(this.measurementForm.controls).length === 0) {
+      return;
+    }
+
+    if (this.isUsingCurrentMeasurements) {
+      this.measurementForm.disable({ emitEvent: false });
+      return;
+    }
+
+    this.measurementForm.enable({ emitEvent: false });
   }
 
   private captureInitialSnapshot(): void {

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { AppContext } from "../app.ts";
-import { CreateOrderSchema, UpdateOrderStatusSchema } from "../validation/schemas.ts";
+import { CreateOrderSchema, UpdateOrderPersonnelSchema, UpdateOrderStatusSchema } from "../validation/schemas.ts";
 
 function cleanText(v: unknown): string | null {
   const s = typeof v === "string" ? v.trim() : "";
@@ -67,6 +67,11 @@ export function ordersRouter(ctx: AppContext) {
 
   route.post("/", async (req, res) => {
     const dto = CreateOrderSchema.parse(req.body);
+    const receivedBy = cleanText(dto.receivedBy);
+    const assignedTo = cleanText(dto.assignedTo);
+    if (!receivedBy || !assignedTo) {
+      return res.status(400).json({ error: "Received By and Assigned To are required." });
+    }
 
     // prefetch item type defaults (to default color/material per item type)
     const itemTypeIds = [...new Set(dto.items.map((i) => i.itemTypeId))];
@@ -166,7 +171,7 @@ export function ordersRouter(ctx: AppContext) {
         missingByItem.push({ itemTypeId: item.itemTypeId, missingFields });
       }
 
-      if (hasInputValues) {
+      if (useCurrent && hasInputValues) {
         workingValuesByType.set(item.itemTypeId, candidateValues);
       }
     }
@@ -184,6 +189,8 @@ export function ordersRouter(ctx: AppContext) {
         data: {
           clientId: dto.clientId,
           status: dto.status,
+          receivedBy,
+          assignedTo,
           dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
           notes: dto.notes ?? null,
         },
@@ -207,7 +214,7 @@ export function ordersRouter(ctx: AppContext) {
           ? { ...existingValues, ...inputValues }
           : { ...inputValues };
 
-        if (hasInputValues) {
+        if (useCurrent && hasInputValues) {
           updatedValuesByType.set(item.itemTypeId, { ...existingValues, ...inputValues });
         }
 
@@ -275,6 +282,29 @@ export function ordersRouter(ctx: AppContext) {
       data: { status: dto.status },
     });
 
+    res.json(updated);
+  });
+
+  route.put("/:id/personnel", async (req, res) => {
+    const id = parseId(req.params.id);
+    if (id === null) return res.status(400).json({ error: "Invalid order id" });
+    const dto = UpdateOrderPersonnelSchema.parse(req.body);
+    const receivedBy = cleanText(dto.receivedBy);
+    const assignedTo = cleanText(dto.assignedTo);
+    if (!receivedBy || !assignedTo) {
+      return res.status(400).json({ error: "Received By and Assigned To are required." });
+    }
+
+    await ctx.prisma.$executeRawUnsafe(
+      `UPDATE orders
+       SET received_by = ?, assigned_to = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      receivedBy,
+      assignedTo,
+      id
+    );
+
+    const updated = await ctx.prisma.order.findUnique({ where: { id } });
     res.json(updated);
   });
 

@@ -64,6 +64,8 @@ model Order {
   id        Int         @id @default(autoincrement())
   clientId  Int         @map("client_id")
   status    String      @default("PLACED")
+  receivedBy String?    @map("received_by")
+  assignedTo String?    @map("assigned_to")
   dueDate   DateTime?   @map("due_date")
   notes     String?
   createdAt DateTime    @default(now()) @map("created_at")

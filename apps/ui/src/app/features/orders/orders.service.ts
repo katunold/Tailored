@@ -21,6 +21,8 @@ interface ApiOrder {
   id: number;
   status: string;
   notes?: string | null;
+  receivedBy?: string | null;
+  assignedTo?: string | null;
   createdAt?: string;
   dueDate: string | null;
   client?: {
@@ -72,6 +74,8 @@ export interface OrderItemTemplateField {
 export interface CreateOrderPayload {
   clientId: number;
   status?: 'PLACED' | 'PROCESSING' | 'PAUSED' | 'COMPLETED' | 'CANCELED';
+  receivedBy: string;
+  assignedTo: string;
   dueDate?: string;
   notes?: string | null;
   items: Array<{
@@ -93,6 +97,8 @@ export interface OrderDetails {
   status: BackendOrderStatus;
   clientName: string;
   clientPhone: string | null;
+  receivedBy: string | null;
+  assignedTo: string | null;
   dueDate: string | null;
   createdAt: string | null;
   notes: string | null;
@@ -106,6 +112,11 @@ export interface OrderDetails {
     notes: string | null;
     measurements: Record<string, number>;
   }>;
+}
+
+function cleanOptionalText(value: unknown): string | null {
+  const trimmed = typeof value === 'string' ? value.trim() : '';
+  return trimmed.length ? trimmed : null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -153,6 +164,33 @@ export class OrdersService {
     return this.http.post<{ id: number }>(this.ordersUrl, payload);
   }
 
+  updateOrderPersonnel(id: number | string, payload: { receivedBy: string; assignedTo: string }): Observable<void> {
+    return this.http.put<void>(`${this.ordersUrl}/${id}/personnel`, payload);
+  }
+
+  getPersonnelSuggestions(): Observable<{ receivedBy: string[]; assignedTo: string[] }> {
+    return this.http.get<ApiOrder[]>(this.ordersUrl).pipe(
+      map((orders) => {
+        const receivedBy = Array.from(
+          new Set(
+            orders
+              .map((order) => (typeof order.receivedBy === 'string' ? order.receivedBy.trim() : ''))
+              .filter((value) => value.length > 0)
+          )
+        ).sort((a, b) => a.localeCompare(b));
+        const assignedTo = Array.from(
+          new Set(
+            orders
+              .map((order) => (typeof order.assignedTo === 'string' ? order.assignedTo.trim() : ''))
+              .filter((value) => value.length > 0)
+          )
+        ).sort((a, b) => a.localeCompare(b));
+
+        return { receivedBy, assignedTo };
+      })
+    );
+  }
+
   getOrders(query = '', status = ''): Observable<ClientOrderRow[]> {
     let params = new HttpParams();
     if (query.trim()) params = params.set('query', query.trim());
@@ -182,6 +220,8 @@ export class OrdersService {
         status: this.toBackendStatus(order.status),
         clientName: order.client?.fullName ?? 'N/A',
         clientPhone: order.client?.phone ?? null,
+        receivedBy: cleanOptionalText(order.receivedBy) ?? null,
+        assignedTo: cleanOptionalText(order.assignedTo) ?? null,
         dueDate: order.dueDate,
         createdAt: order.createdAt ?? null,
         notes: order.notes ?? null,
