@@ -57,6 +57,8 @@ export const CreateOrderItemSchema = z.object({
 export const CreateOrderSchema = z.object({
   clientId: z.coerce.number().int().positive(),
   status: OrderStatusSchema.default("PLACED"),
+  receivedBy: z.string().trim().min(1),
+  assignedTo: z.string().trim().min(1),
   dueDate: z.string().datetime().optional(), // ISO string
   notes: z.string().optional().nullable(),
   items: z.array(CreateOrderItemSchema).min(1),
@@ -64,4 +66,9 @@ export const CreateOrderSchema = z.object({
 
 export const UpdateOrderStatusSchema = z.object({
   status: OrderStatusSchema,
+});
+
+export const UpdateOrderPersonnelSchema = z.object({
+  receivedBy: z.string().trim().min(1),
+  assignedTo: z.string().trim().min(1),
 });

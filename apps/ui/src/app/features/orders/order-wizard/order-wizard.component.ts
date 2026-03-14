@@ -5,6 +5,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
+import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -14,7 +15,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatStepper, MatStepperModule } from '@angular/material/stepper';
-import { catchError, finalize, of } from 'rxjs';
+import { catchError, finalize, of, switchMap } from 'rxjs';
 import { PageHeaderComponent } from '../../../shared/page-header/page-header.component';
 import { PhoneInputDirective } from '../../../shared/directives/phone-input.directive';
 import { phoneValidator } from '../../../shared/validators/phone.validator';
@@ -28,6 +29,7 @@ import {
 import { ProductMeasurementsDialogComponent } from './product-measurements-dialog.component';
 
 type ProductMeasurementRow = {
+  rowId: number;
   itemTypeId: number;
   itemTypeName: string;
   useCurrentMeasurements: boolean;
@@ -42,6 +44,7 @@ type ProductMeasurementRow = {
     ReactiveFormsModule,
     MatButtonModule,
     MatCardModule,
+    MatAutocompleteModule,
     MatDatepickerModule,
     MatFormFieldModule,
     MatInputModule,
@@ -83,10 +86,13 @@ export class OrderWizardComponent implements OnInit {
   protected clients: Array<{ id: number; fullName: string; phone: string; notes: string | null }> = [];
   protected filteredClients: Array<{ id: number; fullName: string; phone: string; notes: string | null }> = [];
   protected clientSearchTerm = '';
+  protected nextProductRowId = 1;
   protected clientProfileMeasurementsByItemType: Record<number, Record<string, number>> = {};
   protected clientProfileAllValuesByItemType: Record<number, Record<string, number | string>> = {};
   protected draftMeasurementsByItemType: Record<number, Record<string, number | string>> = {};
   protected addedProductMeasurements: ProductMeasurementRow[] = [];
+  protected receivedBySuggestions: string[] = [];
+  protected assignedToSuggestions: string[] = [];
 
   protected readonly clientForm = this.fb.group({
     clientId: [null as number | null, Validators.required],
@@ -101,6 +107,8 @@ export class OrderWizardComponent implements OnInit {
 
   protected readonly deliveryForm = this.fb.group({
     dueDate: [null as Date | null, Validators.required],
+    receivedBy: ['', Validators.required],
+    assignedTo: ['', Validators.required],
     notes: ['']
   });
 
@@ -117,6 +125,7 @@ export class OrderWizardComponent implements OnInit {
     }
 
     this.loadItemTypes();
+    this.loadPersonnelSuggestions();
 
     this.clientForm.controls.clientId.valueChanges.subscribe((clientId) => {
       if (this.scopedClientId !== null) {
@@ -135,6 +144,7 @@ export class OrderWizardComponent implements OnInit {
         this.clientProfileAllValuesByItemType = {};
         this.draftMeasurementsByItemType = {};
         this.addedProductMeasurements = [];
+        this.nextProductRowId = 1;
         return;
       }
 
@@ -154,6 +164,7 @@ export class OrderWizardComponent implements OnInit {
       this.filterClients('');
       this.draftMeasurementsByItemType = {};
       this.addedProductMeasurements = [];
+      this.nextProductRowId = 1;
       this.loadClientProfile(selectedClient.id);
     });
   }
@@ -203,6 +214,8 @@ export class OrderWizardComponent implements OnInit {
     const payload: CreateOrderPayload = {
       clientId,
       status: 'PLACED',
+      receivedBy: this.deliveryForm.value.receivedBy?.trim() ?? '',
+      assignedTo: this.deliveryForm.value.assignedTo?.trim() ?? '',
       dueDate: this.deliveryForm.value.dueDate?.toISOString(),
       notes: this.deliveryForm.value.notes?.trim() || null,
       items: this.buildOrderItemsFromAddedProducts()
@@ -211,6 +224,17 @@ export class OrderWizardComponent implements OnInit {
     this.ordersService
       .createOrder(payload)
       .pipe(
+        switchMap((created) =>
+          this.ordersService
+            .updateOrderPersonnel(created.id, {
+              receivedBy: payload.receivedBy,
+              assignedTo: payload.assignedTo
+            })
+            .pipe(
+              catchError(() => of(void 0)),
+              switchMap(() => of(created))
+            )
+        ),
         catchError((err: HttpErrorResponse) => {
           const missingMessage = this.toMissingMeasurementsMessage(err);
           const errorMessage = String((err.error as { error?: string } | null)?.error ?? '').trim();
@@ -242,6 +266,22 @@ export class OrderWizardComponent implements OnInit {
 
   protected summaryClientPhone(): string {
     return this.clientForm.getRawValue().phone?.trim() || 'N/A';
+  }
+
+  protected filteredReceivedBySuggestions(): string[] {
+    const query = this.deliveryForm.value.receivedBy?.trim().toLowerCase() ?? '';
+    if (!query) {
+      return this.receivedBySuggestions;
+    }
+    return this.receivedBySuggestions.filter((value) => value.toLowerCase().includes(query));
+  }
+
+  protected filteredAssignedToSuggestions(): string[] {
+    const query = this.deliveryForm.value.assignedTo?.trim().toLowerCase() ?? '';
+    if (!query) {
+      return this.assignedToSuggestions;
+    }
+    return this.assignedToSuggestions.filter((value) => value.toLowerCase().includes(query));
   }
 
   protected summaryMeasurementEntries(product: ProductMeasurementRow): Array<{ key: string; label: string; value: number | string }> {
@@ -309,6 +349,16 @@ export class OrderWizardComponent implements OnInit {
       )
       .subscribe((itemTypes) => {
         this.itemTypes = itemTypes;
+      });
+  }
+
+  private loadPersonnelSuggestions(): void {
+    this.ordersService
+      .getPersonnelSuggestions()
+      .pipe(catchError(() => of({ receivedBy: [], assignedTo: [] })))
+      .subscribe((suggestions) => {
+        this.receivedBySuggestions = suggestions.receivedBy;
+        this.assignedToSuggestions = suggestions.assignedTo;
       });
   }
 
@@ -411,6 +461,7 @@ export class OrderWizardComponent implements OnInit {
     this.clientProfileAllValuesByItemType = {};
     this.draftMeasurementsByItemType = {};
     this.addedProductMeasurements = [];
+    this.nextProductRowId = 1;
   }
 
   protected cancelNewClientForm(): void {
@@ -505,7 +556,7 @@ export class OrderWizardComponent implements OnInit {
       return false;
     }
 
-    if (this.deliveryForm.controls.dueDate.invalid) {
+    if (this.deliveryForm.invalid) {
       this.deliveryForm.markAllAsTouched();
       return false;
     }
@@ -523,7 +574,9 @@ export class OrderWizardComponent implements OnInit {
         this.draftMeasurementsByItemType[product.itemTypeId] ??
         this.clientProfileAllValuesByItemType[product.itemTypeId] ??
         {};
-      const measurementsInput = this.toOrderMeasurementInput(values, ['notes']);
+      const measurementsInput = product.useCurrentMeasurements
+        ? undefined
+        : this.toOrderMeasurementInput(values, ['notes']);
       const isOthers = product.itemTypeName.trim().toLowerCase() === 'others';
       const productName =
         isOthers && typeof values['productName'] === 'string' ? values['productName'].trim() : '';
@@ -534,7 +587,7 @@ export class OrderWizardComponent implements OnInit {
         quantity: 1,
         ...(product.color ? { color: product.color } : {}),
         ...(product.material ? { material: product.material } : {}),
-        useCurrentMeasurements: measurementsInput ? product.useCurrentMeasurements : true,
+        useCurrentMeasurements: product.useCurrentMeasurements,
         ...(measurementsInput ? { measurementsInput } : {}),
         ...(productName ? { otherProductName: productName } : {}),
         ...(notes ? { itemNotes: notes } : {})
@@ -606,24 +659,27 @@ export class OrderWizardComponent implements OnInit {
       });
   }
 
-  protected openAddProductDialog(itemTypeId?: number): void {
+  protected openAddProductDialog(rowId?: number): void {
     const clientId = this.resolveClientId();
     if (!clientId) {
       this.snackBar.open('Select a client first.', 'Close', { duration: 2500 });
       return;
     }
 
-    const hasSpecificProduct = typeof itemTypeId === 'number' && Number.isInteger(itemTypeId) && itemTypeId > 0;
+    const editingRow = typeof rowId === 'number' ? this.addedProductMeasurements.find((row) => row.rowId === rowId) : undefined;
+    const hasSpecificProduct = Boolean(editingRow);
     const dialogRef = this.dialog.open(ProductMeasurementsDialogComponent, {
       width: '820px',
       maxWidth: '95vw',
       data: {
         itemTypes: this.itemTypes,
-        profileValuesByItemType: {
-          ...this.clientProfileAllValuesByItemType,
-          ...this.draftMeasurementsByItemType
-        },
-        initialItemTypeId: hasSpecificProduct ? itemTypeId : null,
+        profileValuesByItemType: this.clientProfileAllValuesByItemType,
+        draftValuesByItemType: this.draftMeasurementsByItemType,
+        initialUseCurrentMeasurementsByItemType: this.addedProductMeasurements.reduce<Record<number, boolean>>((acc, product) => {
+          acc[product.itemTypeId] = product.useCurrentMeasurements;
+          return acc;
+        }, {}),
+        initialItemTypeId: hasSpecificProduct ? editingRow?.itemTypeId ?? null : null,
         initialOrderDetailsByItemType: this.addedProductMeasurements.reduce<
           Record<number, { color?: string | null; material?: string | null }>
         >((acc, product) => {
@@ -647,22 +703,6 @@ export class OrderWizardComponent implements OnInit {
         ...this.draftMeasurementsByItemType,
         [saved.itemTypeId]: allValues
       };
-      this.clientProfileAllValuesByItemType = {
-        ...this.clientProfileAllValuesByItemType,
-        [saved.itemTypeId]: allValues
-      };
-
-      const numericValues = Object.entries(allValues).reduce<Record<string, number>>((acc, [key, value]) => {
-        const numeric = Number(value);
-        if (Number.isFinite(numeric)) {
-          acc[key] = numeric;
-        }
-        return acc;
-      }, {});
-      this.clientProfileMeasurementsByItemType = {
-        ...this.clientProfileMeasurementsByItemType,
-        [saved.itemTypeId]: numericValues
-      };
 
       const valueRows = (saved.fields ?? [])
         .map((field: { key: string; label: string }) => {
@@ -679,6 +719,7 @@ export class OrderWizardComponent implements OnInit {
         .filter((row: { key: string; label: string; value: number | string } | null): row is { key: string; label: string; value: number | string } => Boolean(row));
 
       const row: ProductMeasurementRow = {
+        rowId: editingRow?.rowId ?? this.nextProductRowId++,
         itemTypeId: saved.itemTypeId,
         itemTypeName: saved.itemTypeName,
         useCurrentMeasurements: saved.useCurrentMeasurements,
@@ -687,7 +728,7 @@ export class OrderWizardComponent implements OnInit {
         values: valueRows
       };
 
-      const existingIndex = this.addedProductMeasurements.findIndex((entry) => entry.itemTypeId === row.itemTypeId);
+      const existingIndex = this.addedProductMeasurements.findIndex((entry) => entry.rowId === row.rowId);
       if (existingIndex >= 0) {
         const next = [...this.addedProductMeasurements];
         next[existingIndex] = row;
@@ -701,8 +742,8 @@ export class OrderWizardComponent implements OnInit {
     });
   }
 
-  protected editProductMeasurements(itemTypeId: number): void {
-    this.openAddProductDialog(itemTypeId);
+  protected editProductMeasurements(rowId: number): void {
+    this.openAddProductDialog(rowId);
   }
 
   private toOrderMeasurementInput(

@@ -26,6 +26,8 @@
       <div><strong>Phone:</strong> {{ order.clientPhone || 'N/A' }}</div>
       <div><strong>Created:</strong> {{ order.createdAt ? (order.createdAt | date: 'medium') : 'N/A' }}</div>
       <div><strong>Due:</strong> {{ order.dueDate ? (order.dueDate | date: 'mediumDate') : 'TBD' }}</div>
+      <div><strong>Received By:</strong> {{ order.receivedBy || 'Unknown' }}</div>
+      <div><strong>Assigned To:</strong> {{ order.assignedTo || 'Unknown' }}</div>
       <div class="span-all"><strong>Notes:</strong> {{ order.notes || 'None' }}</div>
     </section>
 
