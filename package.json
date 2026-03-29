@@ -15,6 +15,7 @@
     "build": "npm -w apps/api run build && npm -w apps/ui run build && npm -w apps/desktop run build",
     "start:desktop": "npm run build && npm -w apps/desktop run start",
     "package:desktop": "npm -w apps/api run prisma:generate && npm run build && npm -w apps/desktop run package:linux",
+    "package:desktop:win": "npm -w apps/api run prisma:generate && npm run build && npm -w apps/desktop run package:win",
     "lint": "echo \"lint not yet configured\"",
     "format": "echo \"format not yet configured\""
   },

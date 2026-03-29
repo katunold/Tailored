@@ -202,6 +202,10 @@ fs.writeFileSync(
   path.join(outDir, 'favicon.ico'),
   buildIco(ICO_SIZES.map((size) => ({ size, png: pngBySize.get(size) })))
 );
+fs.writeFileSync(
+  path.join(outDir, 'icon.ico'),
+  buildIco(ICO_SIZES.map((size) => ({ size, png: pngBySize.get(size) })))
+);
 
 const svg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
