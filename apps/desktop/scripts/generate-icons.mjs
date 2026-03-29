@@ -8,7 +8,7 @@ const outDir = path.resolve(__dirname, '..', 'build', 'icons');
 fs.mkdirSync(outDir, { recursive: true });
 
 const SIZES = [16, 32, 48, 64, 128, 256, 512];
-const ICO_SIZES = [16, 32, 48];
+const ICO_SIZES = [16, 32, 48, 256];
 
 function makeCrcTable() {
   const table = new Uint32Array(256);
