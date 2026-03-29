@@ -10,10 +10,23 @@
   margin: 0 0 var(--space-2);
 }
 
+.client-form {
+  display: grid;
+  gap: var(--space-3);
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-2);
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--touch-gap);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-divider);
 }
 
 .span-all {
@@ -30,5 +43,10 @@
 @media (max-width: 760px) {
   .grid {
     grid-template-columns: 1fr;
+  }
+
+  .form-actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
   }
 }

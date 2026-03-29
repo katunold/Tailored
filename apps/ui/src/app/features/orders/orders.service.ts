@@ -55,6 +55,7 @@ export interface ClientOrderRow {
   client: string;
   item: string;
   status: OrderStatus;
+  createdAt: string | null;
   deliveryDate: string | null;
 }
 
@@ -136,6 +137,7 @@ export class OrdersService {
           client: order.client?.fullName ?? 'N/A',
           item: this.toItemLabel(order.items),
           status: this.toUiStatus(order.status),
+          createdAt: order.createdAt ?? null,
           deliveryDate: order.dueDate
         }))
       )
@@ -203,6 +205,7 @@ export class OrdersService {
           client: order.client?.fullName ?? 'N/A',
           item: this.toItemLabel(order.items),
           status: this.toUiStatus(order.status),
+          createdAt: order.createdAt ?? null,
           deliveryDate: order.dueDate
         }))
       )

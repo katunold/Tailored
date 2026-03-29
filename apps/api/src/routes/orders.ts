@@ -7,6 +7,10 @@ function cleanText(v: unknown): string | null {
   return s.length ? s : null;
 }
 
+function hasRecordedProfileValues(values: Record<string, number | string>): boolean {
+  return Object.keys(values).length > 0;
+}
+
 export function ordersRouter(ctx: AppContext) {
   const route = Router();
   const parseId = (value: string): number | null => {
@@ -153,6 +157,8 @@ export function ordersRouter(ctx: AppContext) {
       const useCurrent = item.useCurrentMeasurements === true;
       const inputValues = item.measurementsInput ?? {};
       const hasInputValues = Object.keys(inputValues).length > 0;
+      const shouldPromoteManualInputToProfile =
+        !useCurrent && !hasRecordedProfileValues(existingValues) && hasInputValues;
       const candidateValues = useCurrent
         ? { ...existingValues, ...inputValues }
         : { ...inputValues };
@@ -171,7 +177,7 @@ export function ordersRouter(ctx: AppContext) {
         missingByItem.push({ itemTypeId: item.itemTypeId, missingFields });
       }
 
-      if (useCurrent && hasInputValues) {
+      if ((useCurrent && hasInputValues) || shouldPromoteManualInputToProfile) {
         workingValuesByType.set(item.itemTypeId, candidateValues);
       }
     }
@@ -210,12 +216,16 @@ export function ordersRouter(ctx: AppContext) {
         const useCurrent = item.useCurrentMeasurements === true;
         const inputValues = item.measurementsInput ?? {};
         const hasInputValues = Object.keys(inputValues).length > 0;
+        const shouldPromoteManualInputToProfile =
+          !useCurrent && !hasRecordedProfileValues(existingValues) && hasInputValues;
         const sourceValues = useCurrent
           ? { ...existingValues, ...inputValues }
           : { ...inputValues };
 
         if (useCurrent && hasInputValues) {
           updatedValuesByType.set(item.itemTypeId, { ...existingValues, ...inputValues });
+        } else if (shouldPromoteManualInputToProfile) {
+          updatedValuesByType.set(item.itemTypeId, { ...inputValues });
         }
 
         const templateFields = templateFieldsByType.get(item.itemTypeId) ?? [];

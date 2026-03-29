@@ -8,7 +8,7 @@ const outDir = path.resolve(__dirname, '..', 'build', 'icons');
 fs.mkdirSync(outDir, { recursive: true });
 
 const SIZES = [16, 32, 48, 64, 128, 256, 512];
-const ICO_SIZES = [16, 32, 48];
+const ICO_SIZES = [16, 32, 48, 256];
 
 function makeCrcTable() {
   const table = new Uint32Array(256);
@@ -200,6 +200,10 @@ for (const size of SIZES) {
 fs.copyFileSync(path.join(outDir, '512x512.png'), path.join(outDir, 'icon.png'));
 fs.writeFileSync(
   path.join(outDir, 'favicon.ico'),
+  buildIco(ICO_SIZES.map((size) => ({ size, png: pngBySize.get(size) })))
+);
+fs.writeFileSync(
+  path.join(outDir, 'icon.ico'),
   buildIco(ICO_SIZES.map((size) => ({ size, png: pngBySize.get(size) })))
 );
 

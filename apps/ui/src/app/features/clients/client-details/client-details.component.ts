@@ -68,7 +68,7 @@ export class ClientDetailsComponent implements OnInit {
   protected measurementProducts: MeasurementProfileDto['products'] = [];
   protected selectedItemTypeId: number | null = null;
 
-  protected readonly orderColumns = ['id', 'item', 'status', 'deliveryDate'];
+  protected readonly orderColumns = ['id', 'item', 'status', 'createdAt', 'deliveryDate'];
   protected orders: ClientOrderRow[] = [];
 
   protected readonly profileForm = this.fb.group({
