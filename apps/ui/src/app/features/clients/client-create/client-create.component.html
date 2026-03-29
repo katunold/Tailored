@@ -1,14 +1,11 @@
 <app-page-header title="New Client" [breadcrumbs]="['Home', 'Clients', 'New Client']" subtitle="Create client profile.">
-  <div header-actions>
-    <button mat-stroked-button type="button" (click)="cancel()" [disabled]="isSaving">Cancel</button>
-    <button mat-flat-button color="primary" type="button" (click)="saveClient()" [disabled]="isSaving">Create Client</button>
-  </div>
 </app-page-header>
 
 <mat-card class="page-card" appearance="raised">
   <section class="section">
     <h3>Profile</h3>
-    <form [formGroup]="clientForm" class="grid">
+    <form [formGroup]="clientForm" class="client-form" (ngSubmit)="saveClient()">
+      <div class="grid">
       <mat-form-field appearance="outline">
         <mat-label>Full Name</mat-label>
         <input matInput formControlName="fullName" />
@@ -28,6 +25,12 @@
         <mat-label>Notes</mat-label>
         <textarea matInput rows="3" formControlName="notes"></textarea>
       </mat-form-field>
+      </div>
+
+      <div class="form-actions">
+        <button mat-stroked-button type="button" (click)="cancel()" [disabled]="isSaving">Cancel</button>
+        <button mat-flat-button color="primary" type="submit" [disabled]="isSaving || clientForm.invalid">Create Client</button>
+      </div>
     </form>
   </section>
 </mat-card>
