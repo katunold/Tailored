@@ -78,9 +78,11 @@ export type ProductMeasurementsDialogResult = {
           <p>Loading measurements...</p>
         </section>
       } @else if (selectedItemTypeId) {
-        <form [formGroup]="measurementModeForm">
-          <mat-checkbox formControlName="useCurrentMeasurements">Use current client profile measurements</mat-checkbox>
-        </form>
+        @if (hasCurrentProfileMeasurements()) {
+          <form [formGroup]="measurementModeForm">
+            <mat-checkbox formControlName="useCurrentMeasurements">Use current client profile measurements</mat-checkbox>
+          </form>
+        }
 
         @if (fields.length === 0) {
           <p class="hint">No measurement fields configured for this product.</p>
@@ -233,6 +235,10 @@ export class ProductMeasurementsDialogComponent implements OnInit {
     return this.headerForm.valid && this.measurementForm.valid;
   }
 
+  protected hasCurrentProfileMeasurements(): boolean {
+    return Object.keys(this.currentProfileValues).length > 0;
+  }
+
   protected save(): void {
     if (!this.canSave() || !this.selectedItemTypeId) {
       this.measurementForm.markAllAsTouched();
@@ -305,9 +311,11 @@ export class ProductMeasurementsDialogComponent implements OnInit {
         );
 
         this.fields = fields;
-        const hasRecordedValues = Object.keys(this.currentProfileValues).length > 0;
+        const hasRecordedValues = this.hasCurrentProfileMeasurements();
         const useCurrentMeasurements =
-          this.data.initialUseCurrentMeasurementsByItemType?.[itemTypeId] ?? hasRecordedValues;
+          hasRecordedValues
+            ? (this.data.initialUseCurrentMeasurementsByItemType?.[itemTypeId] ?? true)
+            : false;
         this.measurementModeForm.patchValue(
           { useCurrentMeasurements },
           { emitEvent: false }
