@@ -116,98 +116,18 @@ function ensureDbFileReady(dbPath: string): void {
   }
 }
 
-async function startApi(): Promise<{ port: number; apiBase: string }> {
-  const port = Number(process.env.API_PORT ?? pickPort());
-  const isDev = process.env.API_DEV === '1';
-  const apiBase = `http://127.0.0.1:${port}`;
-
-  if (isDev) {
-    const root = workspaceRoot();
-    const apiDevCwd = path.join(root, 'apps', 'api');
-    apiProcess = spawn('npm', ['run', 'dev'], {
-      stdio: 'inherit',
-      cwd: apiDevCwd,
-      env: {
-        ...process.env,
-        PORT: String(port)
-      },
-      shell: process.platform === 'win32'
-    });
-
-    apiProcess.on('exit', () => {
-      apiProcess = null;
-    });
-    return { port, apiBase };
+function apiBaseFromEnv(): string {
+  const custom = String(process.env.API_BASE || '').trim();
+  if (custom) {
+    return custom.replace(/\/+$/, '');
   }
-
-  const runtimeDir = desktopRuntimeDir();
-  const root = workspaceRoot();
-  const apiAppEntry = findFirstExistingPath([
-    path.join(runtimeDir, 'api', 'app.js'),
-    path.join(root, 'apps', 'api', 'dist', 'app.js')
-  ]);
-
-  if (!apiAppEntry) {
-    throw new Error('Could not locate bundled API app entrypoint.');
-  }
-
-  const seedDb = findFirstExistingPath([
-    path.join(runtimeDir, 'assets', 'app.db'),
-    path.join(root, 'apps', 'api', 'app.db')
-  ]);
-  const userDataDir = app.getPath('userData');
-  const userDbPath = path.join(userDataDir, 'app.db');
-  fs.mkdirSync(userDataDir, { recursive: true });
-  if (!fs.existsSync(userDbPath) && seedDb && fs.existsSync(seedDb)) {
-    fs.copyFileSync(seedDb, userDbPath);
-  }
-  ensureDbFileReady(userDbPath);
-
-  const databaseUrl = toSqlitePrismaUrl(userDbPath);
-  process.env.DATABASE_URL = databaseUrl;
-  process.env.PORT = String(port);
-  appendStartupLog(`Using SQLite DB at ${userDbPath}`);
-
-  const apiModule = (await import(pathToFileURL(apiAppEntry).href)) as {
-    createApp?: (context: { prisma: any }) => {
-      listen: (port: number, host: string, cb: () => void) => HttpServer;
-    };
-  };
-
-  const prismaClientEntry = findFirstExistingPath([
-    path.join(runtimeDir, 'prisma-client', 'index.js'),
-    path.join(process.resourcesPath, 'node_modules', '.prisma', 'client', 'index.js')
-  ]);
-
-  const prismaModule = prismaClientEntry
-    ? ((await import(pathToFileURL(prismaClientEntry).href)) as {
-        PrismaClient?: new (...args: any[]) => any;
-      })
-    : ((await import('@prisma/client')) as { PrismaClient: new (...args: any[]) => any });
-
-  if (!prismaModule.PrismaClient) {
-    throw new Error(
-      `Could not load PrismaClient from ${prismaClientEntry ?? '@prisma/client'}.`
-    );
-  }
-
-  if (!apiModule.createApp) {
-    throw new Error(`Could not load createApp() from ${apiAppEntry}.`);
-  }
-
-  apiPrisma = new prismaModule.PrismaClient({
-    datasources: { db: { url: databaseUrl } }
-  });
-  const apiApp = apiModule.createApp({ prisma: apiPrisma });
-
-  await new Promise<void>((resolve, reject) => {
-    const server = apiApp.listen(port, '127.0.0.1', () => resolve());
-    server.once('error', reject);
-    apiServer = server;
-  });
-
-  return { port, apiBase };
+  return 'http://127.0.0.1:3030';
 }
+
+function apiDevMode(): boolean {
+  return process.env.API_DEV === '1';
+}
+
 
 async function waitForApi(apiBase: string): Promise<void> {
   const maxAttempts = 40;
@@ -363,8 +283,22 @@ async function createWindow(apiBase: string): Promise<void> {
 
 app.whenReady()
   .then(async () => {
-    const { apiBase } = await startApi();
-    await waitForApi(apiBase);
+    const apiBase = apiBaseFromEnv();
+
+    if (!apiDevMode()) {
+      appendStartupLog(`API client-only mode: ${apiBase}`);
+    }
+
+    try {
+      await waitForApi(apiBase);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'API did not start or is unreachable.';
+      reportFatalStartupError(new Error(`API health-check failed at ${apiBase}: ${message}`));
+      app.quit();
+      return;
+    }
+
     await createWindow(apiBase);
   })
   .catch((error) => {

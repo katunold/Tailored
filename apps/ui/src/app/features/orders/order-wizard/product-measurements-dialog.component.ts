@@ -78,7 +78,7 @@ export type ProductMeasurementsDialogResult = {
           <p>Loading measurements...</p>
         </section>
       } @else if (selectedItemTypeId) {
-        @if (hasCurrentProfileMeasurements()) {
+        @if (hasCurrentProfileMeasurements() && hasRequiredFields) {
           <form [formGroup]="measurementModeForm">
             <mat-checkbox formControlName="useCurrentMeasurements">Use current client profile measurements</mat-checkbox>
           </form>
@@ -232,11 +232,16 @@ export class ProductMeasurementsDialogComponent implements OnInit {
     if (this.isLoadingFields || !this.selectedItemTypeId) {
       return false;
     }
-    return this.headerForm.valid && this.measurementForm.valid;
+    return (  this.headerForm.valid && this.measurementForm.valid) ||
+      (this.isUsingCurrentMeasurements && this.hasCurrentProfileMeasurements());
   }
 
   protected hasCurrentProfileMeasurements(): boolean {
     return Object.keys(this.currentProfileValues).length > 0;
+  }
+
+  protected get hasRequiredFields(): boolean {
+    return this.fields.some(f => f.required);
   }
 
   protected save(): void {
@@ -312,8 +317,9 @@ export class ProductMeasurementsDialogComponent implements OnInit {
 
         this.fields = fields;
         const hasRecordedValues = this.hasCurrentProfileMeasurements();
+        const hasRequiredFields = this.fields.some(f => f.required);
         const useCurrentMeasurements =
-          hasRecordedValues
+          hasRecordedValues && hasRequiredFields
             ? (this.data.initialUseCurrentMeasurementsByItemType?.[itemTypeId] ?? true)
             : false;
         this.measurementModeForm.patchValue(

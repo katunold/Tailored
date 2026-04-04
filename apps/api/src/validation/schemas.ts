@@ -34,24 +34,6 @@ export const CreateOrderItemSchema = z.object({
 
   useCurrentMeasurements: z.boolean().optional(),
   measurementsInput: ProfileMeasurementValuesSchema.optional(),
-}).superRefine((v, ctx) => {
-  // Manual mode requires explicit measurements input.
-  if (v.useCurrentMeasurements === false && !v.measurementsInput) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: "Provide measurementsInput when useCurrentMeasurements=false",
-      path: ["measurementsInput"],
-    });
-  }
-
-  // If mode is omitted, treat as manual and require measurements input.
-  if (v.useCurrentMeasurements === undefined && !v.measurementsInput) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: "Provide useCurrentMeasurements=true or measurementsInput",
-      path: ["useCurrentMeasurements"],
-    });
-  }
 });
 
 export const CreateOrderSchema = z.object({

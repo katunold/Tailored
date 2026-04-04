@@ -11,7 +11,10 @@
     "desktop:dev": "npm run dev",
     "dev:ui": "npm -w apps/ui run start",
     "dev:api": "npm -w apps/api run dev",
-    "dev:desktop": "wait-on http://localhost:4200 && UI_DEV_URL=http://localhost:4200 API_DEV=1 npm -w apps/desktop run dev",
+    "dev:desktop": "wait-on http://localhost:4200 && UI_DEV_URL=http://localhost:4200 API_BASE=http://127.0.0.1:3030 npm -w apps/desktop run dev",
+    "api:serve": "cross-env PORT=3030 npm -w apps/api run start",
+    "api:service-install": "node -e \"const { execSync } = require('child_process'); const path = require('path'); const node = process.execPath; const script = path.resolve('apps/api/dist/server.js'); execSync(`nssm install TailoredApi \\\"${node}\\\" \\\"${script}\\\"`, {stdio:'inherit'}); execSync(`nssm set TailoredApi AppDirectory \\\"${path.resolve('apps/api')}\\\"`, {stdio:'inherit'}); execSync('nssm set TailoredApi Start SERVICE_AUTO_START', {stdio:'inherit'});\"",
+    "api:service-uninstall": "node -e \"require('child_process').execSync('nssm remove TailoredApi confirm', {stdio:'inherit'})\"",
     "build": "npm -w apps/api run build && npm -w apps/ui run build && npm -w apps/desktop run build",
     "start:desktop": "npm run build && npm -w apps/desktop run start",
     "package:desktop": "npm -w apps/api run prisma:generate && npm run build && npm -w apps/desktop run package:linux",
@@ -21,6 +24,7 @@
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
     "wait-on": "^7.2.0"
   }
 }

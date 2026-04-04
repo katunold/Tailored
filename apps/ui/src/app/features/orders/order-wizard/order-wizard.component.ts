@@ -728,22 +728,30 @@ export class OrderWizardComponent implements OnInit {
         values: valueRows
       };
 
-      const existingIndex = this.addedProductMeasurements.findIndex((entry) => entry.rowId === row.rowId);
-      if (existingIndex >= 0) {
-        const next = [...this.addedProductMeasurements];
-        next[existingIndex] = row;
-        this.addedProductMeasurements = next;
-      } else {
-        this.addedProductMeasurements = [...this.addedProductMeasurements, row];
-      }
-
+      this.upsertProductMeasurementRow(row);
       this.snackBar.open('Product measurements updated in this order draft.', 'Close', { duration: 2000 });
-      this.cdr.detectChanges();
     });
   }
 
   protected editProductMeasurements(rowId: number): void {
     this.openAddProductDialog(rowId);
+  }
+
+  protected removeProductMeasurements(rowId: number): void {
+    this.addedProductMeasurements = this.addedProductMeasurements.filter((product) => product.rowId !== rowId);
+    this.snackBar.open('Product removed from order draft.', 'Close', { duration: 2000 });
+  }
+
+  private upsertProductMeasurementRow(row: ProductMeasurementRow): void {
+    const existingIndex = this.addedProductMeasurements.findIndex((entry) => entry.rowId === row.rowId);
+    if (existingIndex >= 0) {
+      const next = [...this.addedProductMeasurements];
+      next[existingIndex] = row;
+      this.addedProductMeasurements = next;
+    } else {
+      this.addedProductMeasurements = [...this.addedProductMeasurements, row];
+    }
+    this.cdr.detectChanges();
   }
 
   private toOrderMeasurementInput(

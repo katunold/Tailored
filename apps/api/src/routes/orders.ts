@@ -149,6 +149,32 @@ export function ordersRouter(ctx: AppContext) {
       baseValuesByType.set(row.itemTypeId, values);
     }
 
+    // Validate item measurements based on fields
+    for (const item of dto.items) {
+      const templateFields = templateFieldsByType.get(item.itemTypeId) ?? [];
+      const requiredKeys = templateFields.filter((f) => Boolean(f.required)).map((f) => f.key);
+      const useCurrent = item.useCurrentMeasurements;
+      const hasMeasurementsInput = item.measurementsInput && Object.keys(item.measurementsInput).length > 0;
+
+      if (useCurrent === true && requiredKeys.length === 0) {
+        return res.status(400).json({
+          error: `Cannot use current measurements for item type ${item.itemTypeId} as it has no required fields.`,
+        });
+      }
+
+      if (useCurrent === false && requiredKeys.length > 0 && !hasMeasurementsInput) {
+        return res.status(400).json({
+          error: `Provide measurementsInput for item type ${item.itemTypeId} when useCurrentMeasurements=false.`,
+        });
+      }
+
+      if (useCurrent === undefined && requiredKeys.length > 0 && !hasMeasurementsInput) {
+        return res.status(400).json({
+          error: `Provide useCurrentMeasurements=true or measurementsInput for item type ${item.itemTypeId}.`,
+        });
+      }
+    }
+
     const workingValuesByType = new Map<number, Record<string, number | string>>(baseValuesByType);
     const missingByItem: Array<{ itemTypeId: number; missingFields: string[] }> = [];
 

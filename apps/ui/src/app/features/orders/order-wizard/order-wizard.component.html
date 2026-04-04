@@ -123,8 +123,21 @@
                 <mat-card appearance="outlined" class="product-measurement-card">
                   <div class="product-measurement-card-header">
                     <h4>{{ product.itemTypeName }}</h4>
-                    <button mat-stroked-button type="button" (click)="editProductMeasurements(product.rowId)">Edit</button>
+                    <div class="product-measurement-card-actions">
+                      <button mat-stroked-button type="button" (click)="editProductMeasurements(product.rowId)">Edit</button>
+                      <button mat-stroked-button type="button" color="warn" (click)="removeProductMeasurements(product.rowId)">Remove</button>
+                    </div>
                   </div>
+                  @if (product.color || product.material) {
+                    <div class="product-measurement-card-meta">
+                      @if (product.color) {
+                        <span class="meta-item"><strong>Color:</strong> {{ product.color }}</span>
+                      }
+                      @if (product.material) {
+                        <span class="meta-item"><strong>Material:</strong> {{ product.material }}</span>
+                      }
+                    </div>
+                  }
                   @if (product.values.length === 0) {
                     <p class="queued-item-meta">No values recorded.</p>
                   } @else {

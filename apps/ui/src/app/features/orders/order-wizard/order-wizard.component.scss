@@ -123,8 +123,26 @@
   margin-bottom: 10px;
 }
 
+.product-measurement-card-actions {
+  display: flex;
+  gap: 8px;
+}
+
 .product-measurement-card h4 {
   margin: 0;
+}
+
+.product-measurement-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+  font-size: 0.9rem;
+  color: var(--color-text-secondary);
+}
+
+.product-measurement-card-meta .meta-item {
+  white-space: nowrap;
 }
 
 .value-grid {
