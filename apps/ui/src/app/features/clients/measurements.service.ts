@@ -35,14 +35,14 @@ export interface MeasurementProfileDto {
 }
 
 const FALLBACK_MEASUREMENT_FIELDS: MeasurementFieldDto[] = [
-  { key: 'neck', label: 'Neck', type: 'number', required: false },
-  { key: 'cabba', label: 'Cabba', type: 'number', required: false },
-  { key: 'sleeves', label: 'Sleeves', type: 'number', required: false },
-  { key: 'length', label: 'Length', type: 'number', required: false },
-  { key: 'bust', label: 'Bust', type: 'number', required: false },
-  { key: 'waist', label: 'Waist', type: 'number', required: false },
-  { key: 'shoulders', label: 'Shoulders', type: 'number', required: false },
-  { key: 'width', label: 'Width', type: 'number', required: false }
+  { key: 'neck', label: 'Neck', type: 'text', required: false },
+  { key: 'cabba', label: 'Cabba', type: 'text', required: false },
+  { key: 'sleeves', label: 'Sleeves', type: 'text', required: false },
+  { key: 'length', label: 'Length', type: 'text', required: false },
+  { key: 'bust', label: 'Bust', type: 'text', required: false },
+  { key: 'waist', label: 'Waist', type: 'text', required: false },
+  { key: 'shoulders', label: 'Shoulders', type: 'text', required: false },
+  { key: 'width', label: 'Width', type: 'text', required: false }
 ];
 
 @Injectable({ providedIn: 'root' })

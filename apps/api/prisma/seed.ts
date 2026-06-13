@@ -9,7 +9,7 @@ type SeedOrderItem = {
   quantity: number;
   color?: string;
   material?: string;
-  measurementOverrides?: Record<string, number>;
+  measurementOverrides?: Record<string, string>;
 };
 type SeedOrder = {
   status: (typeof OrderStatus)[keyof typeof OrderStatus];
@@ -21,97 +21,97 @@ type SeedClient = {
   fullName: string;
   phone: string;
   notes?: string;
-  profileMeasurements: Record<string, number>;
+  profileMeasurements: Record<string, string>;
   orders: SeedOrder[];
 };
 
 const templates: Record<string, Field[]> = {
   Alb: [
-    { key: 'neck', label: 'Neck', type: 'number', required: true },
-    { key: 'cabba', label: 'Cabba', type: 'number', required: true },
-    { key: 'sleeves', label: 'Sleeves', type: 'number', required: true },
-    { key: 'length', label: 'Length', type: 'number', required: true },
-    { key: 'bust', label: 'Bust', type: 'number', required: true },
+    { key: 'neck', label: 'Neck', type: 'text', required: true },
+    { key: 'cabba', label: 'Cabba', type: 'text', required: true },
+    { key: 'sleeves', label: 'Sleeves', type: 'text', required: true },
+    { key: 'length', label: 'Length', type: 'text', required: true },
+    { key: 'bust', label: 'Bust', type: 'text', required: true },
   ],
   Surplice: [
-    { key: 'neck', label: 'Neck', type: 'number', required: true },
-    { key: 'cabba', label: 'Cabba', type: 'number', required: true },
-    { key: 'sleeves', label: 'Sleeves', type: 'number', required: true },
-    { key: 'length', label: 'Length', type: 'number', required: true },
-    { key: 'bust', label: 'Bust', type: 'number', required: true },
+    { key: 'neck', label: 'Neck', type: 'text', required: true },
+    { key: 'cabba', label: 'Cabba', type: 'text', required: true },
+    { key: 'sleeves', label: 'Sleeves', type: 'text', required: true },
+    { key: 'length', label: 'Length', type: 'text', required: true },
+    { key: 'bust', label: 'Bust', type: 'text', required: true },
   ],
   Chasuble: [
-    { key: 'neck', label: 'Neck', type: 'number', required: true },
-    { key: 'cabba', label: 'Cabba', type: 'number', required: true },
-    { key: 'sleeves', label: 'Sleeves', type: 'number', required: false },
-    { key: 'length', label: 'Length', type: 'number', required: true },
+    { key: 'neck', label: 'Neck', type: 'text', required: true },
+    { key: 'cabba', label: 'Cabba', type: 'text', required: true },
+    { key: 'sleeves', label: 'Sleeves', type: 'text', required: false },
+    { key: 'length', label: 'Length', type: 'text', required: true },
   ],
   Dalmatic: [
-    { key: 'neck', label: 'Neck', type: 'number', required: true },
-    { key: 'cabba', label: 'Cabba', type: 'number', required: true },
-    { key: 'sleeves', label: 'Sleeves', type: 'number', required: false },
-    { key: 'length', label: 'Length', type: 'number', required: true },
+    { key: 'neck', label: 'Neck', type: 'text', required: true },
+    { key: 'cabba', label: 'Cabba', type: 'text', required: true },
+    { key: 'sleeves', label: 'Sleeves', type: 'text', required: false },
+    { key: 'length', label: 'Length', type: 'text', required: true },
   ],
   'Clerical Shirt': [
-    { key: 'neck', label: 'Neck', type: 'number', required: true },
-    { key: 'cabba', label: 'Cabba', type: 'number', required: true },
-    { key: 'sleeves', label: 'Sleeves', type: 'number', required: true },
-    { key: 'length', label: 'Length', type: 'number', required: true },
-    { key: 'bust', label: 'Bust', type: 'number', required: true },
-    { key: 'waist', label: 'Waist', type: 'number', required: true },
-    { key: 'shoulders', label: 'Shoulders', type: 'number', required: true },
+    { key: 'neck', label: 'Neck', type: 'text', required: true },
+    { key: 'cabba', label: 'Cabba', type: 'text', required: true },
+    { key: 'sleeves', label: 'Sleeves', type: 'text', required: true },
+    { key: 'length', label: 'Length', type: 'text', required: true },
+    { key: 'bust', label: 'Bust', type: 'text', required: true },
+    { key: 'waist', label: 'Waist', type: 'text', required: true },
+    { key: 'shoulders', label: 'Shoulders', type: 'text', required: true },
   ],
   'Clerical T-Shirt': [
-    { key: 'neck', label: 'Neck', type: 'number', required: true },
-    { key: 'cabba', label: 'Cabba', type: 'number', required: true },
-    { key: 'sleeves', label: 'Sleeves', type: 'number', required: true },
-    { key: 'length', label: 'Length', type: 'number', required: true },
-    { key: 'bust', label: 'Bust', type: 'number', required: true },
-    { key: 'waist', label: 'Waist', type: 'number', required: true },
-    { key: 'shoulders', label: 'Shoulders', type: 'number', required: true },
+    { key: 'neck', label: 'Neck', type: 'text', required: true },
+    { key: 'cabba', label: 'Cabba', type: 'text', required: true },
+    { key: 'sleeves', label: 'Sleeves', type: 'text', required: true },
+    { key: 'length', label: 'Length', type: 'text', required: true },
+    { key: 'bust', label: 'Bust', type: 'text', required: true },
+    { key: 'waist', label: 'Waist', type: 'text', required: true },
+    { key: 'shoulders', label: 'Shoulders', type: 'text', required: true },
   ],
   'Dog Collar': [
-    { key: 'neck', label: 'Neck', type: 'number', required: true },
-    { key: 'cabba', label: 'Cabba', type: 'number', required: true },
-    { key: 'sleeves', label: 'Sleeves', type: 'number', required: true },
-    { key: 'length', label: 'Length', type: 'number', required: true },
-    { key: 'bust', label: 'Bust', type: 'number', required: true },
-    { key: 'waist', label: 'Waist', type: 'number', required: true },
-    { key: 'shoulders', label: 'Shoulders', type: 'number', required: true },
+    { key: 'neck', label: 'Neck', type: 'text', required: true },
+    { key: 'cabba', label: 'Cabba', type: 'text', required: true },
+    { key: 'sleeves', label: 'Sleeves', type: 'text', required: true },
+    { key: 'length', label: 'Length', type: 'text', required: true },
+    { key: 'bust', label: 'Bust', type: 'text', required: true },
+    { key: 'waist', label: 'Waist', type: 'text', required: true },
+    { key: 'shoulders', label: 'Shoulders', type: 'text', required: true },
   ],
   Cassock: [
-    { key: 'neck', label: 'Neck', type: 'number', required: true },
-    { key: 'cabba', label: 'Cabba', type: 'number', required: true },
-    { key: 'sleeves', label: 'Sleeves', type: 'number', required: true },
-    { key: 'shoulders', label: 'Shoulders', type: 'number', required: true },
-    { key: 'waist', label: 'Waist', type: 'number', required: true },
-    { key: 'bust', label: 'Bust', type: 'number', required: true },
-    { key: 'length', label: 'Length', type: 'number', required: true },
-    { key: 'kakooti', label: 'Kakooti', type: 'number', required: true },
+    { key: 'neck', label: 'Neck', type: 'text', required: true },
+    { key: 'cabba', label: 'Cabba', type: 'text', required: true },
+    { key: 'sleeves', label: 'Sleeves', type: 'text', required: true },
+    { key: 'shoulders', label: 'Shoulders', type: 'text', required: true },
+    { key: 'waist', label: 'Waist', type: 'text', required: true },
+    { key: 'bust', label: 'Bust', type: 'text', required: true },
+    { key: 'length', label: 'Length', type: 'text', required: true },
+    { key: 'kakooti', label: 'Kakooti', type: 'text', required: true },
   ],
   Mappa: [
-    { key: 'length', label: 'Length', type: 'number', required: true },
-    { key: 'width', label: 'Width', type: 'number', required: true },
+    { key: 'length', label: 'Length', type: 'text', required: true },
+    { key: 'width', label: 'Width', type: 'text', required: true },
   ],
   Cope: [
-    { key: 'cabba', label: 'Cabba', type: 'number', required: true },
-    { key: 'neck', label: 'Neck', type: 'number', required: true },
-    { key: 'bust', label: 'Bust', type: 'number', required: true },
-    { key: 'length', label: 'Length', type: 'number', required: true },
+    { key: 'cabba', label: 'Cabba', type: 'text', required: true },
+    { key: 'neck', label: 'Neck', type: 'text', required: true },
+    { key: 'bust', label: 'Bust', type: 'text', required: true },
+    { key: 'length', label: 'Length', type: 'text', required: true },
   ],
   'Altar servers vestments': [
-    { key: 'neck', label: 'Neck', type: 'number', required: true },
-    { key: 'cabba', label: 'Cabba', type: 'number', required: true },
-    { key: 'sleeves', label: 'Sleeves', type: 'number', required: true },
-    { key: 'length', label: 'Length', type: 'number', required: true },
-    { key: 'bust', label: 'Bust', type: 'number', required: true },
+    { key: 'neck', label: 'Neck', type: 'text', required: true },
+    { key: 'cabba', label: 'Cabba', type: 'text', required: true },
+    { key: 'sleeves', label: 'Sleeves', type: 'text', required: true },
+    { key: 'length', label: 'Length', type: 'text', required: true },
+    { key: 'bust', label: 'Bust', type: 'text', required: true },
   ],
   "Catechists' vestments": [
-    { key: 'neck', label: 'Neck', type: 'number', required: true },
-    { key: 'cabba', label: 'Cabba', type: 'number', required: true },
-    { key: 'sleeves', label: 'Sleeves', type: 'number', required: true },
-    { key: 'length', label: 'Length', type: 'number', required: true },
-    { key: 'bust', label: 'Bust', type: 'number', required: true },
+    { key: 'neck', label: 'Neck', type: 'text', required: true },
+    { key: 'cabba', label: 'Cabba', type: 'text', required: true },
+    { key: 'sleeves', label: 'Sleeves', type: 'text', required: true },
+    { key: 'length', label: 'Length', type: 'text', required: true },
+    { key: 'bust', label: 'Bust', type: 'text', required: true },
   ],
   'Altar clothes': [
     { key: 'notes', label: 'Notes', type: 'text', required: false },
@@ -157,15 +157,15 @@ const seedClients: SeedClient[] = [
     phone: '+1-202-555-0141',
     notes: 'Prefers breathable fabric for warm seasons.',
     profileMeasurements: {
-      neck: 16,
-      cabba: 40,
-      sleeves: 25,
-      length: 58,
-      bust: 42,
-      waist: 38,
-      shoulders: 19,
-      width: 22,
-      kakooti: 22,
+      neck: '16',
+      cabba: '40',
+      sleeves: '25',
+      length: '58',
+      bust: '42',
+      waist: '38',
+      shoulders: '19',
+      width: '22',
+      kakooti: '22',
     },
     orders: [
       {
@@ -194,15 +194,15 @@ const seedClients: SeedClient[] = [
     phone: '+1-202-555-0142',
     notes: 'Sleeves adjusted after last fitting.',
     profileMeasurements: {
-      neck: 15,
-      cabba: 39,
-      sleeves: 24,
-      length: 56,
-      bust: 40,
-      waist: 36,
-      shoulders: 18,
-      width: 21,
-      kakooti: 21,
+      neck: '15',
+      cabba: '39',
+      sleeves: '24',
+      length: '56',
+      bust: '40',
+      waist: '36',
+      shoulders: '18',
+      width: '21',
+      kakooti: '21',
     },
     orders: [
       {
@@ -230,15 +230,15 @@ const seedClients: SeedClient[] = [
     phone: '+1-202-555-0143',
     notes: 'Usually orders in bundles per quarter.',
     profileMeasurements: {
-      neck: 17,
-      cabba: 42,
-      sleeves: 26,
-      length: 60,
-      bust: 44,
-      waist: 40,
-      shoulders: 20,
-      width: 23,
-      kakooti: 23,
+      neck: '17',
+      cabba: '42',
+      sleeves: '26',
+      length: '60',
+      bust: '44',
+      waist: '40',
+      shoulders: '20',
+      width: '23',
+      kakooti: '23',
     },
     orders: [
       {
@@ -262,7 +262,7 @@ const seedClients: SeedClient[] = [
             quantity: 8,
             color: 'White',
             material: 'Cotton',
-            measurementOverrides: { neck: 17.5 },
+            measurementOverrides: { neck: '17.5' },
           },
         ],
       },
@@ -278,16 +278,16 @@ function addDays(date: Date, days: number): Date {
 
 function toMeasurementSnapshot(
   fields: Field[] | undefined,
-  profileValues: Record<string, number>,
-  overrides: Record<string, number> | undefined
-): Record<string, number> {
+  profileValues: Record<string, string>,
+  overrides: Record<string, string> | undefined
+): Record<string, string> {
   const source = { ...profileValues, ...(overrides ?? {}) };
   const keys = (fields ?? []).map((f) => f.key);
 
-  return keys.reduce<Record<string, number>>((acc, key) => {
+  return keys.reduce<Record<string, string>>((acc, key) => {
     const value = source[key];
-    if (Number.isFinite(value)) {
-      acc[key] = Number(value);
+    if (typeof value === 'string' && value.trim().length > 0) {
+      acc[key] = value.trim();
     }
     return acc;
   }, {});

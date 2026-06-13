@@ -11,7 +11,7 @@ interface ApiOrderItem {
   color: string;
   material: string;
   notes?: string | null;
-  measurementSnapshot?: Record<string, number>;
+  measurementSnapshot?: Record<string, string>;
   itemType?: {
     name: string;
   } | null;
@@ -111,7 +111,7 @@ export interface OrderDetails {
     color: string;
     material: string;
     notes: string | null;
-    measurements: Record<string, number>;
+    measurements: Record<string, string>;
   }>;
 }
 

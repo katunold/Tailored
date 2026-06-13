@@ -7,7 +7,30 @@ function cleanText(v: unknown): string | null {
   return s.length ? s : null;
 }
 
-function hasRecordedProfileValues(values: Record<string, number | string>): boolean {
+function normalizeMeasurementValue(value: unknown): string | null {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+
+  return null;
+}
+
+function normalizeMeasurementValues(values: Record<string, unknown>): Record<string, string> {
+  return Object.entries(values).reduce<Record<string, string>>((acc, [key, value]) => {
+    const normalized = normalizeMeasurementValue(value);
+    if (normalized !== null) {
+      acc[key] = normalized;
+    }
+    return acc;
+  }, {});
+}
+
+function hasRecordedProfileValues(values: Record<string, string>): boolean {
   return Object.keys(values).length > 0;
 }
 
@@ -62,7 +85,7 @@ export function ordersRouter(ctx: AppContext) {
     // parse snapshot json for convenience
     const items = order.items.map((i: any) => ({
       ...i,
-      measurementSnapshot: JSON.parse(i.measurementSnapshotJson),
+      measurementSnapshot: normalizeMeasurementValues(JSON.parse(i.measurementSnapshotJson)),
       notes: cleanText(i.notes),
     }));
 
@@ -135,7 +158,7 @@ export function ordersRouter(ctx: AppContext) {
       where: { clientId: dto.clientId, itemTypeId: { in: itemTypeIds } },
       select: { itemTypeId: true, valuesJson: true },
     });
-    const baseValuesByType = new Map<number, Record<string, number | string>>();
+    const baseValuesByType = new Map<number, Record<string, string>>();
     for (const row of currentRows) {
       let parsed: unknown;
       try {
@@ -144,18 +167,18 @@ export function ordersRouter(ctx: AppContext) {
         parsed = {};
       }
       const values = parsed && typeof parsed === "object" && !Array.isArray(parsed)
-        ? (parsed as Record<string, number | string>)
+        ? normalizeMeasurementValues(parsed as Record<string, unknown>)
         : {};
       baseValuesByType.set(row.itemTypeId, values);
     }
 
-    const workingValuesByType = new Map<number, Record<string, number | string>>(baseValuesByType);
+    const workingValuesByType = new Map<number, Record<string, string>>(baseValuesByType);
     const missingByItem: Array<{ itemTypeId: number; missingFields: string[] }> = [];
 
     for (const item of dto.items) {
       const existingValues = workingValuesByType.get(item.itemTypeId) ?? {};
       const useCurrent = item.useCurrentMeasurements === true;
-      const inputValues = item.measurementsInput ?? {};
+      const inputValues = normalizeMeasurementValues(item.measurementsInput ?? {});
       const hasInputValues = Object.keys(inputValues).length > 0;
       const shouldPromoteManualInputToProfile =
         !useCurrent && !hasRecordedProfileValues(existingValues) && hasInputValues;
@@ -170,7 +193,7 @@ export function ordersRouter(ctx: AppContext) {
 
       const missingFields = requiredKeys.filter((key) => {
         const value = candidateValues[key];
-        return value === null || value === undefined || !Number.isFinite(Number(value));
+        return value === null || value === undefined || value.trim().length === 0;
       });
 
       if (missingFields.length > 0) {
@@ -202,7 +225,7 @@ export function ordersRouter(ctx: AppContext) {
         },
       });
 
-      const updatedValuesByType = new Map<number, Record<string, number | string>>(baseValuesByType);
+      const updatedValuesByType = new Map<number, Record<string, string>>(baseValuesByType);
 
       // For each item, resolve measurements + snapshot + defaults
       for (const item of dto.items) {
@@ -214,7 +237,7 @@ export function ordersRouter(ctx: AppContext) {
         const color = cleanText(item.color) ?? d?.defaultColor ?? "Default";
         const material = cleanText(item.material) ?? d?.defaultMaterial ?? "Standard";
         const useCurrent = item.useCurrentMeasurements === true;
-        const inputValues = item.measurementsInput ?? {};
+        const inputValues = normalizeMeasurementValues(item.measurementsInput ?? {});
         const hasInputValues = Object.keys(inputValues).length > 0;
         const shouldPromoteManualInputToProfile =
           !useCurrent && !hasRecordedProfileValues(existingValues) && hasInputValues;
@@ -230,10 +253,10 @@ export function ordersRouter(ctx: AppContext) {
 
         const templateFields = templateFieldsByType.get(item.itemTypeId) ?? [];
         const relevantKeys = templateFields.map((f) => f.key);
-        const measurementSnapshot = relevantKeys.reduce<Record<string, number>>((acc, key) => {
+        const measurementSnapshot = relevantKeys.reduce<Record<string, string>>((acc, key) => {
           const value = sourceValues[key];
-          if (value !== undefined && value !== null && Number.isFinite(Number(value))) {
-            acc[key] = Number(value);
+          if (value !== undefined && value !== null && value.trim().length > 0) {
+            acc[key] = value;
           }
           return acc;
         }, {});

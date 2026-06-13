@@ -89,21 +89,13 @@ export type ProductMeasurementsDialogResult = {
         } @else {
           <form [formGroup]="measurementForm" class="dialog-grid">
             @for (field of fields; track field.key) {
-              <mat-form-field appearance="outline" [class.span-all]="field.type === 'text'">
+              <mat-form-field appearance="outline">
                 <mat-label>{{ field.label }}{{ field.required ? ' *' : '' }}</mat-label>
-                @if (field.type === 'text') {
-                  <textarea
-                    matInput
-                    rows="3"
-                    [formControlName]="field.key"
-                    [readonly]="isUsingCurrentMeasurements"></textarea>
-                } @else {
-                  <input
-                    matInput
-                    type="number"
-                    [formControlName]="field.key"
-                    [readonly]="isUsingCurrentMeasurements" />
-                }
+                <input
+                  matInput
+                  type="text"
+                  [formControlName]="field.key"
+                  [readonly]="isUsingCurrentMeasurements" />
                 @if (measurementForm.get(field.key)?.hasError('required')) {
                   <mat-error>{{ field.label }} is required.</mat-error>
                 }
@@ -232,7 +224,7 @@ export class ProductMeasurementsDialogComponent implements OnInit {
     if (this.isLoadingFields || !this.selectedItemTypeId) {
       return false;
     }
-    return this.headerForm.valid && this.measurementForm.valid;
+    return this.headerForm.valid && (this.measurementForm.disabled || this.measurementForm.valid);
   }
 
   protected hasCurrentProfileMeasurements(): boolean {
@@ -245,24 +237,16 @@ export class ProductMeasurementsDialogComponent implements OnInit {
       return;
     }
 
-    const values: Record<string, number | string> = {};
+    const values: Record<string, string> = {};
     for (const field of this.fields) {
       const raw = this.measurementForm.get(field.key)?.value;
       if (raw === null || raw === undefined || raw === '') {
         continue;
       }
 
-      if (field.type === 'text') {
-        const textValue = String(raw).trim();
-        if (textValue) {
-          values[field.key] = textValue;
-        }
-        continue;
-      }
-
-      const numeric = Number(raw);
-      if (Number.isFinite(numeric)) {
-        values[field.key] = numeric;
+      const textValue = String(raw).trim();
+      if (textValue) {
+        values[field.key] = textValue;
       }
     }
 
