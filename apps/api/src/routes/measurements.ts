@@ -10,14 +10,14 @@ type MeasurementField = {
 };
 
 const DEFAULT_MEASUREMENT_FIELDS = [
-  { key: "neck", label: "Neck", type: "number", required: false },
-  { key: "cabba", label: "Cabba", type: "number", required: false },
-  { key: "sleeves", label: "Sleeves", type: "number", required: false },
-  { key: "length", label: "Length", type: "number", required: false },
-  { key: "bust", label: "Bust", type: "number", required: false },
-  { key: "waist", label: "Waist", type: "number", required: false },
-  { key: "shoulders", label: "Shoulders", type: "number", required: false },
-  { key: "width", label: "Width", type: "number", required: false },
+  { key: "neck", label: "Neck", type: "text", required: false },
+  { key: "cabba", label: "Cabba", type: "text", required: false },
+  { key: "sleeves", label: "Sleeves", type: "text", required: false },
+  { key: "length", label: "Length", type: "text", required: false },
+  { key: "bust", label: "Bust", type: "text", required: false },
+  { key: "waist", label: "Waist", type: "text", required: false },
+  { key: "shoulders", label: "Shoulders", type: "text", required: false },
+  { key: "width", label: "Width", type: "text", required: false },
 ] as const;
 
 function parseFieldsJson(fieldsJson: string): MeasurementField[] {
@@ -48,7 +48,7 @@ function parseFieldsJson(fieldsJson: string): MeasurementField[] {
     fields.push({
       key,
       label: String(f.label || key),
-      type: f.type === "text" ? "text" : "number",
+      type: f.type === "number" ? "number" : "text",
       required: Boolean(f.required),
     });
   }
@@ -56,7 +56,30 @@ function parseFieldsJson(fieldsJson: string): MeasurementField[] {
   return fields;
 }
 
-function parseValuesJson(valuesJson: string | null): Record<string, number | string> {
+function normalizeMeasurementValue(value: unknown): string | null {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+
+  return null;
+}
+
+function normalizeMeasurementValues(values: Record<string, unknown>): Record<string, string> {
+  return Object.entries(values).reduce<Record<string, string>>((acc, [key, value]) => {
+    const normalized = normalizeMeasurementValue(value);
+    if (normalized !== null) {
+      acc[key] = normalized;
+    }
+    return acc;
+  }, {});
+}
+
+function parseValuesJson(valuesJson: string | null): Record<string, string> {
   if (!valuesJson) return {};
 
   let parsed: unknown;
@@ -70,20 +93,7 @@ function parseValuesJson(valuesJson: string | null): Record<string, number | str
     return {};
   }
 
-  return Object.entries(parsed as Record<string, unknown>).reduce<Record<string, number | string>>((acc, [key, value]) => {
-    if (typeof value === "number" && Number.isFinite(value)) {
-      acc[key] = value;
-      return acc;
-    }
-
-    if (typeof value === "string") {
-      const trimmed = value.trim();
-      if (trimmed.length > 0) {
-        acc[key] = trimmed;
-      }
-    }
-    return acc;
-  }, {});
+  return normalizeMeasurementValues(parsed as Record<string, unknown>);
 }
 
 export function measurementsRouter(ctx: AppContext) {
@@ -154,7 +164,7 @@ export function measurementsRouter(ctx: AppContext) {
           byKey.set(trimmed, {
             key: trimmed,
             label,
-            type: "number",
+            type: "text",
             required: false,
           });
         }
@@ -225,7 +235,8 @@ export function measurementsRouter(ctx: AppContext) {
     const itemTypeId = parseId(req.params.itemTypeId);
     if (itemTypeId === null) return res.status(400).json({ error: "Invalid item type id" });
     const dto = UpsertCurrentMeasurementSchema.parse(req.body);
-    const valuesJson = JSON.stringify(dto.values);
+    const normalizedValues = normalizeMeasurementValues(dto.values);
+    const valuesJson = JSON.stringify(normalizedValues);
 
     const itemType = await ctx.prisma.itemType.findUnique({
       where: { id: itemTypeId },
@@ -249,7 +260,7 @@ export function measurementsRouter(ctx: AppContext) {
       fields: itemType.measurementTemplate ? parseFieldsJson(itemType.measurementTemplate.fieldsJson) : [],
       valuesJson: saved.valuesJson,
       updatedAt: saved.updatedAt,
-      values: dto.values,
+      values: normalizedValues,
     });
   });
 

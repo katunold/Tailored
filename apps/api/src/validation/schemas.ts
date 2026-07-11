@@ -17,7 +17,7 @@ export const CreateClientSchema = z.object({
 
 export const UpdateClientSchema = CreateClientSchema.partial();
 
-export const MeasurementValuesSchema = z.record(z.string(), z.number());
+export const MeasurementValuesSchema = z.record(z.string(), z.string());
 export const ProfileMeasurementValuesSchema = z.record(z.string(), z.union([z.number(), z.string()]));
 
 export const UpsertCurrentMeasurementSchema = z.object({

@@ -112,7 +112,7 @@ export class ClientDetailsComponent implements OnInit {
     }
 
     this.isSavingMeasurements = true;
-    const values: Record<string, number | string> = {};
+    const values: Record<string, string> = {};
 
     for (const field of selectedProduct.fields) {
       const raw = this.measurementForm.get(field.key)?.value;
@@ -121,21 +121,12 @@ export class ClientDetailsComponent implements OnInit {
         continue;
       }
 
-      if (field.type === 'text') {
-        const textValue = String(raw).trim();
-        if (!textValue) {
-          continue;
-        }
-        values[field.key] = textValue;
+      const textValue = String(raw).trim();
+      if (!textValue) {
         continue;
       }
 
-      const numericValue = Number(raw);
-      if (!Number.isFinite(numericValue)) {
-        continue;
-      }
-
-      values[field.key] = numericValue;
+      values[field.key] = textValue;
     }
 
     this.measurementsService
@@ -444,10 +435,6 @@ export class ClientDetailsComponent implements OnInit {
     });
   }
 
-  protected isTextMeasurementField(field: { type: 'number' | 'text' }): boolean {
-    return field.type === 'text';
-  }
-
   private otherProductNameExistsValidator(currentItemTypeId: number): ValidatorFn {
     return (control: AbstractControl): ValidationErrors | null => {
       const raw = String(control.value ?? '').trim().toLowerCase();
@@ -465,17 +452,12 @@ export class ClientDetailsComponent implements OnInit {
   private normalizeFieldValue(
     fieldType: 'number' | 'text',
     raw: unknown
-  ): number | string | null {
+  ): string | null {
     if (raw === null || raw === undefined || raw === '') {
       return null;
     }
 
-    if (fieldType === 'text') {
-      const textValue = String(raw).trim();
-      return textValue.length > 0 ? textValue : null;
-    }
-
-    const numericValue = Number(raw);
-    return Number.isFinite(numericValue) ? numericValue : null;
+    const textValue = String(raw).trim();
+    return textValue.length > 0 ? textValue : null;
   }
 }

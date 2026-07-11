@@ -87,7 +87,6 @@ export class OrderWizardComponent implements OnInit {
   protected filteredClients: Array<{ id: number; fullName: string; phone: string; notes: string | null }> = [];
   protected clientSearchTerm = '';
   protected nextProductRowId = 1;
-  protected clientProfileMeasurementsByItemType: Record<number, Record<string, number>> = {};
   protected clientProfileAllValuesByItemType: Record<number, Record<string, number | string>> = {};
   protected draftMeasurementsByItemType: Record<number, Record<string, number | string>> = {};
   protected addedProductMeasurements: ProductMeasurementRow[] = [];
@@ -140,7 +139,6 @@ export class OrderWizardComponent implements OnInit {
           },
           { emitEvent: false }
         );
-        this.clientProfileMeasurementsByItemType = {};
         this.clientProfileAllValuesByItemType = {};
         this.draftMeasurementsByItemType = {};
         this.addedProductMeasurements = [];
@@ -457,7 +455,6 @@ export class OrderWizardComponent implements OnInit {
       },
       { emitEvent: false }
     );
-    this.clientProfileMeasurementsByItemType = {};
     this.clientProfileAllValuesByItemType = {};
     this.draftMeasurementsByItemType = {};
     this.addedProductMeasurements = [];
@@ -641,20 +638,10 @@ export class OrderWizardComponent implements OnInit {
         })
       )
       .subscribe((profile) => {
-        const valuesByItemType: Record<number, Record<string, number>> = {};
         const allValuesByItemType: Record<number, Record<string, number | string>> = {};
         for (const product of profile?.products ?? []) {
           allValuesByItemType[product.itemTypeId] = product.values ?? {};
-          const numericValues = Object.entries(product.values ?? {}).reduce<Record<string, number>>((acc, [key, value]) => {
-            const numeric = Number(value);
-            if (Number.isFinite(numeric)) {
-              acc[key] = numeric;
-            }
-            return acc;
-          }, {});
-          valuesByItemType[product.itemTypeId] = numericValues;
         }
-        this.clientProfileMeasurementsByItemType = valuesByItemType;
         this.clientProfileAllValuesByItemType = allValuesByItemType;
       });
   }
@@ -749,21 +736,23 @@ export class OrderWizardComponent implements OnInit {
   private toOrderMeasurementInput(
     values: Record<string, number | string>,
     excludedKeys: string[] = []
-  ): Record<string, number | string> | undefined {
+  ): Record<string, string> | undefined {
     const excluded = new Set(excludedKeys.map((key) => key.trim()).filter((key) => key.length > 0));
 
-    const entries = Object.entries(values).filter(([key, value]) => {
+    const entries = Object.entries(values).reduce<Array<[string, string]>>((acc, [key, value]) => {
       if (excluded.has(key)) {
-        return false;
+        return acc;
       }
       if (value === null || value === undefined) {
-        return false;
+        return acc;
       }
-      if (typeof value === 'string') {
-        return value.trim().length > 0;
+
+      const normalized = typeof value === 'string' ? value.trim() : String(value).trim();
+      if (normalized.length > 0) {
+        acc.push([key, normalized]);
       }
-      return Number.isFinite(Number(value));
-    });
+      return acc;
+    }, []);
 
     if (entries.length === 0) {
       return undefined;
@@ -777,12 +766,7 @@ export class OrderWizardComponent implements OnInit {
       return Number.isFinite(value);
     }
 
-    const trimmed = value.trim();
-    if (!trimmed.length) {
-      return false;
-    }
-
-    return Number.isFinite(Number(trimmed));
+    return value.trim().length > 0;
   }
 
   private cleanOptionalText(value: unknown): string | null {

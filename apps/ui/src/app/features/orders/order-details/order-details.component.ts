@@ -26,7 +26,7 @@ type StatusOption = {
 };
 
 type OrderItemRow = OrderDetails['items'][number];
-type MeasurementPair = { key: string; value: number };
+type MeasurementPair = { key: string; value: string };
 
 @Component({
   selector: 'app-order-item-details-dialog',
@@ -164,14 +164,13 @@ export class OrderDetailsComponent implements OnInit {
     return (this.order?.items?.length ?? 0) > 0;
   }
 
-  protected measurementPairs(item: OrderDetails['items'][number]): Array<{ key: string; value: number }> {
+  protected measurementPairs(item: OrderDetails['items'][number]): Array<{ key: string; value: string }> {
     const templateKeys = this.templateKeysByItemTypeId.get(item.itemTypeId) ?? [];
 
     if (templateKeys.length > 0) {
       return templateKeys
         .filter((key) => item.measurements[key] !== undefined && item.measurements[key] !== null)
-        .map((key) => ({ key, value: Number(item.measurements[key]) }))
-        .filter((pair) => Number.isFinite(pair.value));
+        .map((key) => ({ key, value: item.measurements[key] }));
     }
 
     return Object.entries(item.measurements)
